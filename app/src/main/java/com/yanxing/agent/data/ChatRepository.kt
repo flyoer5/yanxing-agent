@@ -6,6 +6,8 @@ import kotlinx.coroutines.flow.map
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+import org.json.JSONArray
+import org.json.JSONObject
 
 @Singleton
 class ChatRepository @Inject constructor(
@@ -42,9 +44,21 @@ class ChatRepository @Inject constructor(
         return id
     }
 
-    suspend fun appendMessage(conversationId: String, role: String, content: String) {
+    suspend fun appendMessage(conversationId: String, role: String, content: String, attachments: List<Attachment> = emptyList()) {
         val now = System.currentTimeMillis()
-        messageDao.insert(MessageEntity(UUID.randomUUID().toString(), conversationId, role, content, now))
+        val attachmentsJson = JSONArray().apply {
+            attachments.forEach { att ->
+                put(JSONObject().apply {
+                    put("type", att.type)
+                    put("uri", att.uri)
+                    put("mimeType", att.mimeType)
+                    put("name", att.name)
+                    put("size", att.size)
+                    att.base64?.let { put("base64", it) }
+                })
+            }
+        }.toString()
+        messageDao.insert(MessageEntity(UUID.randomUUID().toString(), conversationId, role, content, attachmentsJson, now))
         conversationDao.findById(conversationId)?.let { current ->
             val nextTitle = if (current.title == "新对话" && role == "user") {
                 content.take(24).ifBlank { current.title }
@@ -97,6 +111,7 @@ data class ChatMessage(
     val id: String,
     val role: String,
     val content: String,
+    val attachments: List<Attachment> = emptyList(),
 )
 
 data class Memory(
@@ -109,5 +124,22 @@ data class Memory(
 
 private fun ConversationEntity.toDomain() = Conversation(id, title, groupId, updatedAt)
 private fun GroupEntity.toDomain() = ConversationGroup(id, name)
-private fun MessageEntity.toDomain() = ChatMessage(id, role, content)
+private fun MessageEntity.toDomain(): ChatMessage {
+    val atts = mutableListOf<Attachment>()
+    try {
+        val jsonArray = JSONArray(attachments)
+        for (i in 0 until jsonArray.length()) {
+            val obj = jsonArray.getJSONObject(i)
+            atts.add(Attachment(
+                type = obj.optString("type"),
+                uri = obj.optString("uri"),
+                mimeType = obj.optString("mimeType"),
+                name = obj.optString("name"),
+                size = obj.optLong("size"),
+                base64 = if (obj.has("base64")) obj.getString("base64") else null,
+            ))
+        }
+    } catch (_: Exception) { /* ignore parse errors */ }
+    return ChatMessage(id, role, content, atts)
+}
 private fun MemoryEntity.toDomain() = Memory(id, content, category, isSensitive, updatedAt)

@@ -33,7 +33,26 @@ data class MessageEntity(
     val conversationId: String,
     val role: String,
     val content: String,
+    val attachments: String = "[]", // JSON array of Attachment
     val createdAt: Long,
+)
+
+/**
+ * 多模态附件：图片、文件、语音
+ * type: "image" | "file" | "audio"
+ * uri: 本地文件路径
+ * mimeType: MIME 类型
+ * name: 文件名
+ * size: 文件大小（字节）
+ * base64: base64 编码内容（用于 API 请求）
+ */
+data class Attachment(
+    val type: String,      // "image" | "file" | "audio"
+    val uri: String,       // 本地 URI
+    val mimeType: String,  // image/jpeg, application/pdf, etc.
+    val name: String,      // 文件名
+    val size: Long = 0,    // 文件大小
+    val base64: String? = null, // base64 编码（可选，用于 API）
 )
 
 @Entity(tableName = "memories")

@@ -1,11 +1,17 @@
 package com.yanxing.agent.ui
 
-import com.yanxing.agent.data.ChatMessage
-import com.yanxing.agent.data.Conversation
-import com.yanxing.agent.data.ConversationGroup
-import com.yanxing.agent.data.Memory
+import android.Manifest
+import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.provider.OpenableColumns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -19,13 +25,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.Chat
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Memory
+import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Send
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
@@ -42,7 +54,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -54,11 +65,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
+import com.yanxing.agent.data.Attachment
+import com.yanxing.agent.data.ChatMessage
+import com.yanxing.agent.data.Conversation
+import com.yanxing.agent.data.ConversationGroup
+import com.yanxing.agent.data.Memory
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,7 +88,6 @@ fun AgentApp(viewModel: ChatViewModel = hiltViewModel()) {
     var selectedTab by remember { mutableStateOf(0) }
     var showSettings by remember { mutableStateOf(false) }
     var showSessions by remember { mutableStateOf(false) }
-    var showMemoryManager by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(state.error) {
@@ -139,6 +159,9 @@ fun AgentApp(viewModel: ChatViewModel = hiltViewModel()) {
                 onDraftChanged = viewModel::updateDraft,
                 onSend = viewModel::send,
                 onToggleStreaming = viewModel::toggleStreaming,
+                onAddAttachment = viewModel::addAttachment,
+                onRemoveAttachment = viewModel::removeAttachment,
+                onVoiceInput = { viewModel.setVoiceInputMode(true) },
                 modifier = Modifier.padding(padding),
             )
             1 -> MemoryScreen(
@@ -184,20 +207,61 @@ fun AgentApp(viewModel: ChatViewModel = hiltViewModel()) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ChatScreen(
     state: ChatUiState,
     onDraftChanged: (String) -> Unit,
     onSend: () -> Unit,
     onToggleStreaming: () -> Unit,
+    onAddAttachment: (Attachment) -> Unit,
+    onRemoveAttachment: (Int) -> Unit,
+    onVoiceInput: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
     val listState = rememberLazyListState()
+
+    // 图片选择器
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            val mimeType = context.contentResolver.getType(it) ?: "image/jpeg"
+            val name = getFileName(context, it) ?: "image_${System.currentTimeMillis()}.jpg"
+            // 读取 base64
+            val base64 = readFileAsBase64(context, it)
+            onAddAttachment(Attachment("image", it.toString(), mimeType, name, 0, base64))
+        }
+    }
+
+    // 文件选择器
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri?.let {
+            val mimeType = context.contentResolver.getType(it) ?: "application/octet-stream"
+            val name = getFileName(context, it) ?: "file_${System.currentTimeMillis()}"
+            val base64 = readFileAsBase64(context, it)
+            onAddAttachment(Attachment("file", it.toString(), mimeType, name, 0, base64))
+        }
+    }
+
+    // 录音权限请求
+    val micPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) onVoiceInput()
+    }
+
     LaunchedEffect(state.messages.size, state.inProgressReply) {
         if (state.messages.isNotEmpty()) listState.animateScrollToItem(state.messages.lastIndex)
     }
 
+    val canSend = (state.draft.isNotBlank() || state.pendingAttachments.isNotEmpty()) && !state.isSending
+
     Column(modifier = modifier.fillMaxSize()) {
+        // 消息列表
         if (state.messages.isEmpty()) {
             Column(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -234,6 +298,21 @@ private fun ChatScreen(
             }
         }
 
+        // 待发送附件预览
+        if (state.pendingAttachments.isNotEmpty()) {
+            LazyRow(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(vertical = 4.dp),
+            ) {
+                items(state.pendingAttachments.indices.toList()) { index ->
+                    val att = state.pendingAttachments[index]
+                    AttachmentPreview(att, onRemove = { onRemoveAttachment(index) })
+                }
+            }
+        }
+
+        // 输入区域
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -243,6 +322,26 @@ private fun ChatScreen(
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
+            // 图片按钮
+            IconButton(onClick = { imagePickerLauncher.launch("image/*") }) {
+                Icon(Icons.Outlined.Image, contentDescription = "发送图片")
+            }
+            // 文件按钮
+            IconButton(onClick = { filePickerLauncher.launch(arrayOf("*/*")) }) {
+                Icon(Icons.Outlined.AttachFile, contentDescription = "发送文件")
+            }
+            // 语音输入按钮
+            IconButton(onClick = {
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
+                    == PackageManager.PERMISSION_GRANTED) {
+                    onVoiceInput()
+                } else {
+                    micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                }
+            }) {
+                Icon(Icons.Outlined.Mic, contentDescription = "语音输入")
+            }
+
             OutlinedTextField(
                 value = state.draft,
                 onValueChange = onDraftChanged,
@@ -251,9 +350,9 @@ private fun ChatScreen(
                 maxLines = 5,
                 enabled = !state.isSending,
             )
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(4.dp))
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                IconButton(onClick = onSend, enabled = state.draft.isNotBlank() && !state.isSending) {
+                IconButton(onClick = onSend, enabled = canSend) {
                     if (state.isSending) {
                         CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
                     } else {
@@ -261,9 +360,47 @@ private fun ChatScreen(
                     }
                 }
                 TextButton(onClick = onToggleStreaming) {
-                    Text(if (state.streaming) "流式" else "完整")
+                    Text(if (state.streaming) "流式" else "完整", style = MaterialTheme.typography.labelSmall)
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun AttachmentPreview(attachment: Attachment, onRemove: () -> Unit) {
+    Box(
+        modifier = Modifier.size(60.dp).clip(RoundedCornerShape(8.dp))
+    ) {
+        when (attachment.type) {
+            "image" -> {
+                AsyncImage(
+                    model = attachment.uri,
+                    contentDescription = "待发送图片",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                )
+            }
+            else -> {
+                Box(
+                    modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Outlined.AttachFile, contentDescription = null, modifier = Modifier.size(24.dp))
+                }
+            }
+        }
+        // 删除按钮
+        IconButton(
+            onClick = onRemove,
+            modifier = Modifier.align(Alignment.TopEnd).size(20.dp),
+        ) {
+            Icon(
+                Icons.Outlined.Close,
+                contentDescription = "移除",
+                modifier = Modifier.size(14.dp),
+                tint = MaterialTheme.colorScheme.error,
+            )
         }
     }
 }
@@ -283,14 +420,79 @@ private fun MessageBubble(message: ChatMessage, modifier: Modifier = Modifier) {
                 else MaterialTheme.colorScheme.surfaceVariant,
             ),
         ) {
-            Text(
-                text = message.content,
-                modifier = Modifier.padding(14.dp),
-                style = MaterialTheme.typography.bodyLarge,
-            )
+            Column(modifier = Modifier.padding(14.dp)) {
+                // 附件预览（图片）
+                if (message.attachments.any { it.type == "image" }) {
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        items(message.attachments.filter { it.type == "image" }) { att ->
+                            AsyncImage(
+                                model = att.uri,
+                                contentDescription = "图片",
+                                modifier = Modifier.size(120.dp).clip(RoundedCornerShape(8.dp)),
+                                contentScale = ContentScale.Crop,
+                            )
+                        }
+                    }
+                }
+                // 文件列表
+                if (message.attachments.any { it.type == "file" }) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+                        message.attachments.filter { it.type == "file" }.forEach { att ->
+                            Row(
+                                modifier = Modifier.padding(vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    Icons.Outlined.AttachFile,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(att.name, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                }
+                // 文本内容
+                if (message.content.isNotBlank()) {
+                    Text(
+                        text = message.content,
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                }
+            }
         }
     }
 }
+
+// ============ 辅助函数 ============
+
+private fun getFileName(context: android.content.Context, uri: Uri): String? {
+    var name: String? = null
+    context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+        if (cursor.moveToFirst()) {
+            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (nameIndex >= 0) name = cursor.getString(nameIndex)
+        }
+    }
+    return name
+}
+
+private fun readFileAsBase64(context: android.content.Context, uri: Uri): String? {
+    return try {
+        context.contentResolver.openInputStream(uri)?.use { stream ->
+            val bytes = stream.readBytes()
+            android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+        }
+    } catch (e: Exception) {
+        null
+    }
+}
+
+// ============ 其他屏幕 ============
 
 @Composable
 private fun SettingsScreen(
@@ -424,7 +626,10 @@ private fun SessionsDialog(
                             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            TextButton(onClick = { onSelect(conversation.id) }, modifier = Modifier.weight(1f)) {
+                            TextButton(
+                                onClick = { onSelect(conversation.id) },
+                                modifier = Modifier.weight(1f)
+                            ) {
                                 Text(
                                     text = if (conversation.id == selectedId) "✓ ${conversation.title}" else conversation.title,
                                     maxLines = 1,
@@ -468,7 +673,11 @@ private fun MemoryScreen(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(memory.content)
-                                Text(memory.category, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                Text(
+                                    memory.category,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
                             }
                             TextButton(onClick = { onDelete(memory.id) }) { Text("删除") }
                         }

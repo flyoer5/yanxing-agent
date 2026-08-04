@@ -1,7 +1,9 @@
 package com.yanxing.agent.ui
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.yanxing.agent.data.Attachment
 import com.yanxing.agent.data.ChatMessage
 import com.yanxing.agent.data.ChatRepository
 import com.yanxing.agent.data.Conversation
@@ -64,6 +66,29 @@ class ChatViewModel @Inject constructor(
     fun updateModel(value: String) = _uiState.update { it.copy(model = value) }
     fun updateDraft(value: String) = _uiState.update { it.copy(draft = value) }
 
+    // ===== 附件管理 =====
+
+    fun addAttachment(attachment: Attachment) {
+        _uiState.update { it.copy(pendingAttachments = it.pendingAttachments + attachment) }
+    }
+
+    fun removeAttachment(index: Int) {
+        _uiState.update { state ->
+            state.copy(pendingAttachments = state.pendingAttachments.toMutableList().apply {
+                if (index in indices) removeAt(index)
+            })
+        }
+    }
+
+    fun clearAttachments() {
+        _uiState.update { it.copy(pendingAttachments = emptyList()) }
+    }
+
+    // ===== 设置语音输入状态 =====
+    fun setVoiceInputMode(enabled: Boolean) {
+        _uiState.update { it.copy(voiceInputMode = enabled) }
+    }
+
     fun saveSettings() {
         settings.baseUrl = uiState.value.baseUrl
         settings.model = uiState.value.model
@@ -87,6 +112,7 @@ class ChatViewModel @Inject constructor(
                 draft = "",
                 inProgressReply = "",
                 memoryReferenceCount = 0,
+                pendingAttachments = emptyList(),
             )
         }
     }
@@ -121,30 +147,31 @@ class ChatViewModel @Inject constructor(
 
     fun send() {
         val text = uiState.value.draft.trim()
-        if (text.isEmpty() || uiState.value.isSending) return
+        val attachments = uiState.value.pendingAttachments
+        if (text.isEmpty() && attachments.isEmpty()) return
+        if (uiState.value.isSending) return
         val current = uiState.value
         if (current.baseUrl.isBlank() || current.model.isBlank() || current.apiKey.isBlank()) {
             _uiState.update { it.copy(error = "请先在设置中填写 API 地址、Key 和模型") }
             return
         }
-        _uiState.update { it.copy(draft = "", isSending = true, error = null) }
+        _uiState.update { it.copy(draft = "", isSending = true, error = null, pendingAttachments = emptyList()) }
         viewModelScope.launch {
             val conversationId = currentConversationId.value
-            repository.appendMessage(conversationId, "user", text)
-            extractMemory(text)
+            repository.appendMessage(conversationId, "user", text, attachments)
+            if (text.isNotBlank()) extractMemory(text)
             val history = repository.messagesForRequest(conversationId)
             val memoryContext = relevantMemories(text, current.memories)
             _uiState.update { it.copy(memoryReferenceCount = memoryContext.size) }
             val requestMessages = buildList {
                 if (memoryContext.isNotEmpty()) {
-                    add(
-                        ChatMessageDto(
-                            role = "system",
-                            content = "以下是与当前问题相关的用户长期记忆，仅在有帮助时使用：\n" + memoryContext.joinToString("\n") { "- ${it.content}" },
-                        ),
-                    )
+                    add(ChatMessageDto(
+                        role = "system",
+                        content = "以下是与当前问题相关的用户长期记忆，仅在有帮助时使用：\n" +
+                            memoryContext.joinToString("\n") { "- ${it.content}" },
+                    ))
                 }
-                addAll(history.map { ChatMessageDto(it.role, it.content) })
+                addAll(history.map { it.toChatMessageDto() })
             }
             val request = ChatCompletionRequest(
                 model = current.model,
@@ -187,7 +214,7 @@ class ChatViewModel @Inject constructor(
         )
         val match = rules.firstOrNull { text.contains(it.first) } ?: return
         if (listOf("api key", "密码", "验证码", "token", "密钥").any { text.contains(it, ignoreCase = true) }) return
-            val memory = repository.saveMemory(text, match.second)
+        val memory = repository.saveMemory(text, match.second)
         _uiState.update { it.copy(memoryNotice = memory) }
     }
 
@@ -211,6 +238,21 @@ class ChatViewModel @Inject constructor(
             )
         }
     }
+
+    /** 将 ChatMessage 转换为 API 请求的 ChatMessageDto，支持多模态 */
+    private fun ChatMessage.toChatMessageDto(): ChatMessageDto {
+        val images = attachments.filter { it.type == "image" && it.base64 != null }
+        return if (images.isNotEmpty()) {
+            ChatMessageDto.withImage(
+                role = role,
+                text = content,
+                imageBase64 = images.first().base64!!,
+                mimeType = images.first().mimeType,
+            )
+        } else {
+            ChatMessageDto.text(role, content)
+        }
+    }
 }
 
 data class ChatUiState(
@@ -222,6 +264,8 @@ data class ChatUiState(
     val memoryNotice: Memory? = null,
     val memoryReferenceCount: Int = 0,
     val draft: String = "",
+    val pendingAttachments: List<Attachment> = emptyList(), // 待发送的附件
+    val voiceInputMode: Boolean = false,
     val baseUrl: String = "",
     val apiKey: String = "",
     val model: String = "",

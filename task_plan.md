@@ -1,7 +1,7 @@
-# 言行 Agent 第二阶段开发计划
+# 言行 Agent 第三阶段开发计划
 
 ## 目标
-在第一阶段文字对话基础上，加入持久化多会话、项目/主题分组和长期记忆闭环。
+支持图片、文件、语音输入输出，扩展多模态交互能力。
 
 ## 阶段
 - [complete] 1. 项目骨架与 CI
@@ -10,30 +10,46 @@
 - [complete] 4. Compose 聊天与模型配置界面
 - [complete] 5. 单元测试、文档、推送验证
 - [complete] 6. 多会话、分组与长期记忆
-- [pending] 7. 语音、图片/文件
+- [in_progress] 7. 语音、图片/文件输入输出
 - [pending] 8. 联网搜索
 - [pending] 9. 悬浮窗、无障碍与 Root 增强
 
 ## 本阶段验收标准
-- [ ] 重启后仍能看到会话和消息
-- [ ] 可以新建、切换、删除会话
-- [ ] 会话可以归入项目/主题分组
-- [ ] 可以查看、删除长期记忆
-- [ ] 默认自动保存明确的偏好/资料/项目表达，并提供撤销
-- [ ] 相关记忆会注入请求并显示引用数量
-- [ ] GitHub Actions 编译、测试、上传 Debug APK 成功
+- [ ] 支持从相册选择图片并发送
+- [ ] 支持相机拍摄图片并发送
+- [ ] 支持发送文件和文档
+- [ ] 支持语音输入（麦克风录音转文字）
+- [ ] 显示消息中的图片/文件预览
+- [ ] 正确构建多模态请求体（base64 或 URL）
+- [ ] GitHub Actions 编译、测试成功
 
-## 已确认决策
-- 应用名：言行 Agent
-- 包名：com.yanxing.agent
-- Kotlin + Compose + Material 3
-- 单模块优先
-- minSdk 24，首要测试 Android 13/16
-- API 地址、模型、API Key 可配置；API Key 使用 Keystore 加密
-- GitHub Actions：PR/main 编译测试；main 和手动触发上传 Debug APK
-- 长期记忆默认自动保存，敏感内容不自动保存
+## 技术方案
+
+### 图片输入
+- 使用 PhotoPicker API（Android 13+）或 Intent.ACTION_PICK
+- 压缩后转 base64 或使用 URL
+- 消息 UI 显示缩略图
+
+### 文件输入
+- Intent.ACTION_OPEN_DOCUMENT
+- 支持 PDF、Word、Excel 等
+- 转 base64 或文件名+摘要
+
+### 语音输入
+- 使用 android-speech 录音转文字
+- 或者 Android SpeechRecognizer
+- 结果作为用户消息发送
+
+### 语音输出（TTS）
+- 使用 android-speak（TTS）朗读 AI 回复
+- 可选功能，用户可开关
+
+## API 兼容性
+- OpenAI Vision: `messages[].content[]` 包含 `type: "image_url"` 或 `type: "image_base64"`
+- Claude: 支持 images 参数
+- 统一抽象多模态消息构建
 
 ## 错误记录
 | 错误 | 尝试 | 处理 |
 |---|---:|---|
-| 无 | - | - |
+| - | - | - |
