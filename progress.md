@@ -9,3 +9,4 @@
 - 实现 Android Keystore 加密保存 API Key。
 - 实现聊天页面、模型设置页面和本地消息保存。
 - 通过 `git diff --check` 格式检查；本地无 Gradle/Android SDK，未执行本地编译。
+- 首次 GitHub Actions 构建因缺少 `android.useAndroidX=true` 失败，已修复并准备重新验证。
