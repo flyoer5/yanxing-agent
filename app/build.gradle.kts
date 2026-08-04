@@ -48,7 +48,7 @@ android {
     }
 }
 
-kapt { correctErrorTypes = true }
+// kapt { correctErrorTypes = true } // 临时注释，避免编译错误
 
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
