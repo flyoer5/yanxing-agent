@@ -292,13 +292,14 @@ class ChatViewModel @Inject constructor(
             _uiState.update { it.copy(error = "请先在设置中开启无障碍服务") }
             return
         }
-        _uiState.update { it.copy(actionStatus = ActionStatus.Readying) }
+        _uiState.update { it.copy(actionStatus = ActionStatus.Readying, lastScreenPackage = "") }
         
         viewModelScope.launch {
             val screenText = extractScreenText()
             _uiState.update { 
                 it.copy(
                     actionStatus = ActionStatus.Ready(screenText),
+                    lastScreenPackage = ScreenReaderAccessibilityService.lastScreenPackage,
                     draft = "",
                 ) 
             }
@@ -539,6 +540,7 @@ data class ChatUiState(
     val accessibilityEnabled: Boolean = false,
     val actionModeEnabled: Boolean = false, // 替我行动模式开关
     val actionStatus: ActionStatus = ActionStatus.Idle, // 当前行动状态
+    val lastScreenPackage: String = "", // 最近读取的屏幕包名（用于显示）
     val baseUrl: String = "",
     val apiKey: String = "",
     val model: String = "",
