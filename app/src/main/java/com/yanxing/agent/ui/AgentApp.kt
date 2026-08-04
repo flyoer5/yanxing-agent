@@ -60,6 +60,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -903,6 +904,70 @@ private fun PlaceholderScreen(text: String, modifier: Modifier = Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) { Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+}
+
+@Composable
+private fun ConfirmActionCard(action: AIDecisionEngine.Action, onConfirm: (Boolean) -> Unit) {
+    val isClick = action is AIDecisionEngine.Action.Click
+    val isSwipe = action is AIDecisionEngine.Action.Swipe
+    
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        colors = androidx.compose.material3.CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        ),
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(
+                text = if (action is AIDecisionEngine.Action.InputText) "输入文本确认" 
+                    else if (isClick) "点击操作确认"
+                    else if (isSwipe) "滑动操作确认"
+                    else "长按操作确认",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Spacer(Modifier.height(8.dp))
+            
+            // 显示具体动作描述
+            Text(
+                text = when (action) {
+                    is AIDecisionEngine.Action.Click -> "点击：${action.query}"
+                    is AIDecisionEngine.Action.LongPress -> "长按：${action.query}"
+                    is AIDecisionEngine.Action.Swipe -> "滑动方向：${action.direction.name}"
+                    is AIDecisionEngine.Action.InputText -> "输入：\"${action.text}\""
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            
+            Spacer(Modifier.height(12.dp))
+            
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Button(
+                    onClick = { onConfirm(true) },
+                    enabled = !isSwipe && !isSwipe, // 滑动不需要确认
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("允许执行")
+                }
+                OutlinedButton(
+                    onClick = { onConfirm(false) },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("跳过")
+                }
+            }
+            
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "💡 AI 认为需要此操作，但你可以拒绝它。",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
 }
 
 private fun tabTitle(index: Int) = when (index) {

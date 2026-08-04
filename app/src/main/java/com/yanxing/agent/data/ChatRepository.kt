@@ -118,8 +118,21 @@ sealed class ActionStatus {
     data object Idle : ActionStatus()
     data object Readying : ActionStatus()
     data class Ready(val screenText: String) : ActionStatus()
-    data class Executing(val current: Int, val total: Int, val actionDesc: String? = null) : ActionStatus()
+    data class Executing(
+        val current: Int, 
+        val total: Int, 
+        val actionDesc: String? = null,
+        val confirmed: Boolean = false, // 是否已确认执行当前动作
+        val userApproved: Boolean = true, // 用户是否批准（true=允许，false=拒绝）
+    ) : ActionStatus()
+    
     data class Completed(val successCount: Int, val totalCount: Int) : ActionStatus()
+    
+    // 用于 Pending Actions 的中间状态
+    sealed class PendingConfirm : ActionStatus() {
+        data class Waiting(val actions: List<AIDecisionEngine.Action>, val index: Int) : PendingConfirm()
+        data object Canceled : PendingConfirm()
+    }
 }
 
 data class Memory(

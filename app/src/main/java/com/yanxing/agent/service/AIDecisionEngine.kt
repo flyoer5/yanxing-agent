@@ -98,6 +98,13 @@ object AIDecisionEngine {
         data class Swipe(val direction: SwipeDirection) : Action()
         data class InputText(val query: String, val text: String) : Action()
         
+        fun toDesc(): String = when (this) {
+            is Click -> "点击 [${query}]"
+            is LongPress -> "长按 [${query}]"
+            is Swipe -> "滑动 ${direction.name}"
+            is InputText -> "输入文本 \"${text}\""
+        }
+        
         fun toExecCommand(): com.yanxing.agent.service.ActionExecutor.ActionType = 
             when (this) {
                 is Click -> com.yanxing.agent.service.ActionExecutor.ActionType.CLICK(query)

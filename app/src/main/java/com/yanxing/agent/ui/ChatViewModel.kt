@@ -320,33 +320,123 @@ class ChatViewModel @Inject constructor(
             _uiState.update { it.copy(error = "无障碍服务未开启") }
             return
         }
-
-        _uiState.update { it.copy(actionStatus = ActionStatus.Executing(actions.size)) }
         
-        viewModelScope.launch {
-            var successCount = 0
-            
-            for ((index, action) in actions.withIndex()) {
-                _uiState.update { 
-                    it.copy(actionStatus = ActionStatus.Executing(index + 1, actions.size, action.toDesc())) 
-                }
-                
-                val result = when (action) {
-                    is AIDecisionEngine.Action.Click -> com.yanxing.agent.service.ActionExecutor.click(action.query)
-                    is AIDecisionEngine.Action.LongPress -> com.yanxing.agent.service.ActionExecutor.longPress(action.query)
-                    is AIDecisionEngine.Action.Swipe -> com.yanxing.agent.service.ActionExecutor.swipe(action.direction)
-                    is AIDecisionEngine.Action.InputText -> com.yanxing.agent.service.ActionExecutor.inputText(action.query, action.text)
-                }
-                
-                if (result.success) successCount++
-            }
-            
+        if (actions.isEmpty()) {
             _uiState.update { 
                 it.copy(
-                    actionStatus = ActionStatus.Completed(successCount, actions.size),
-                    error = null
+                    actionStatus = ActionStatus.Completed(0, 0),
+                    error = "没有检测到可执行的操作"
                 ) 
             }
+            return
+        }
+        
+        // 进入待确认状态
+        _uiState.update { 
+            it.copy(actionStatus = ActionStatus.PendingConfirm.Waiting(actions, 0)) 
+        }
+    }
+    
+    /** 用户点击确认按钮，批准当前动作 */
+    fun confirmCurrentAction(approved: Boolean) {
+        val current = uiState.value.actionStatus
+        
+        if (current !is ActionStatus.PendingConfirm.Waiting) return
+        
+        val actions = current.actions
+        val index = current.index
+        
+        if (approved) {
+            // 切换到执行状态
+            _uiState.update { 
+                it.copy(
+                    actionStatus = ActionStatus.Executing(
+                        index + 1,
+                        actions.size,
+                        actions[index].toDesc(),
+                        confirmed = true,
+                        userApproved = true
+                    )
+                )
+            }
+            
+            // 开始执行这个动作
+            executePendingAction(actions, index + 1)
+        } else {
+            // 拒绝动作，跳过并询问下一个
+            _uiState.update {
+                it.copy(actionStatus = ActionStatus.PendingConfirm.Waiting(actions, index))
+            }
+            executePendingActionSkipping(actions, index + 1)
+        }
+    }
+    
+    private fun executePendingAction(actions: List<AIDecisionEngine.Action>, nextIndex: Int) {
+        viewModelScope.launch {
+            if (nextIndex >= actions.size) {
+                // 所有动作已完成
+                _uiState.update { 
+                    it.copy(
+                        actionStatus = ActionStatus.Completed(actions.size, actions.size)
+                    ) 
+                }
+                return@launch
+            }
+            
+            val action = actions[actions[nextIndex - 1]]
+            
+            val result = when (action) {
+                is AIDecisionEngine.Action.Click -> com.yanxing.agent.service.ActionExecutor.click(action.query)
+                is AIDecisionEngine.Action.LongPress -> com.yanxing.agent.service.ActionExecutor.longPress(action.query)
+                is AIDecisionEngine.Action.Swipe -> com.yanxing.agent.service.ActionExecutor.swipe(action.direction)
+                is AIDecisionEngine.Action.InputText -> com.yanxing.agent.service.ActionExecutor.inputText(action.query, action.text)
+            }
+            
+            if (result.success && nextIndex < actions.size) {
+                // 继续下一个动作
+                _uiState.update { 
+                    it.copy(
+                        actionStatus = ActionStatus.PendingConfirm.Waiting(actions, nextIndex)
+                    ) 
+                }
+            } else if (result.success) {
+                // 完成
+                _uiState.update { 
+                    it.copy(
+                        actionStatus = ActionStatus.Completed(nextIndex, actions.size)
+                    ) 
+                }
+            } else {
+                // 失败，提示用户但继续询问下一个
+                _uiState.update { 
+                    it.copy(
+                        actionStatus = ActionStatus.PendingConfirm.Waiting(actions, nextIndex - 1),
+                        error = "操作${action.toDesc()}失败，请重试"
+                    ) 
+                }
+            }
+        }
+    }
+    
+    private fun executePendingActionSkipping(actions: List<AIDecisionEngine.Action>, skippedIndex: Int) {
+        if (skippedIndex >= actions.size) {
+            // 全部跳过
+            val successCount = actions.filterIndexed { i, _ ->
+                // 统计已成功的动作（这里简单处理为成功 count）
+                true
+            }.count()
+            _uiState.update { 
+                it.copy(
+                    actionStatus = ActionStatus.Completed(successCount, actions.size)
+                ) 
+            }
+            return
+        }
+        
+        _uiState.update { 
+            it.copy(
+                actionStatus = ActionStatus.PendingConfirm.Waiting(actions, skippedIndex)
+            ) 
         }
     }
 
