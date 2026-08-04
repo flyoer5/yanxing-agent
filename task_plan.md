@@ -8,7 +8,7 @@
 - [complete] 2. 本地会话/消息数据层
 - [complete] 3. OpenAI 兼容 API 与流式输出
 - [complete] 4. Compose 聊天与模型配置界面
-- [in_progress] 5. 单元测试、文档、推送验证
+- [complete] 5. 单元测试、文档、推送验证
 
 ## 已确认决策
 - 应用名：言行 Agent
