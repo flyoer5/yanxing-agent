@@ -4,6 +4,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.encodeToString
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -70,7 +71,7 @@ class OkHttpLlmClient @Inject constructor(
             .url(endpoint(baseUrl))
             .header("Authorization", "Bearer $apiKey")
             .header("Content-Type", "application/json")
-            .post(json.encodeToString(request).toRequestBody(JSON))
+            .post(json.encodeToString<ChatCompletionRequest>(request).toRequestBody(JSON))
             .build()
     ).execute()
 
@@ -121,6 +122,9 @@ object NetworkModule {
 
     @dagger.Provides
     @javax.inject.Singleton
-    fun provideLlmClient(client: OkHttpClient, json: Json): LlmClient =
-        OkHttpLlmClient(client, json)
+    fun provideLlmClient(
+        client: OkHttpClient,
+        json: Json,
+        @IoDispatcher ioDispatcher: CoroutineDispatcher,
+    ): LlmClient = OkHttpLlmClient(client, json, ioDispatcher)
 }
