@@ -13,8 +13,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             YanxingTheme {
-                AgentApp()
+                AgentApp(initialText = intent?.getStringExtra(EXTRA_QUICK_TEXT))
             }
         }
+    }
+
+    companion object {
+        /** 悬浮窗快捷输入传递的文本 */
+        const val EXTRA_QUICK_TEXT = "quick_text"
     }
 }

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">言行 Agent</string>
+    <string name="accessibility_service_description">言行 Agent 无障碍服务用于读取当前屏幕文字内容，帮助你向 AI 描述当前界面，实现"替我行动"能力。我们不会收集或上传你的屏幕内容。</string>
+    <string name="accessibility_service_summary">读取屏幕文字，实现替我行动能力</string>
+</resources>

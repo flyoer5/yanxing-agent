@@ -85,12 +85,21 @@ import com.yanxing.agent.data.Memory
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AgentApp(viewModel: ChatViewModel = hiltViewModel()) {
+fun AgentApp(
+    viewModel: ChatViewModel = hiltViewModel(),
+    initialText: String? = null,
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var selectedTab by remember { mutableStateOf(0) }
     var showSettings by remember { mutableStateOf(false) }
     var showSessions by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(initialText) {
+        if (!initialText.isNullOrBlank()) {
+            viewModel.updateDraft(initialText)
+        }
+    }
 
     LaunchedEffect(state.error) {
         state.error?.let { snackbarHostState.showSnackbar(it); viewModel.clearError() }
@@ -180,6 +189,7 @@ fun AgentApp(viewModel: ChatViewModel = hiltViewModel()) {
                 onModelChanged = viewModel::updateModel,
                 onSearchApiKeyChanged = viewModel::updateSearchApiKey,
                 onToggleSearch = viewModel::toggleSearchEnabled,
+                onToggleFloatingWindow = viewModel::toggleFloatingWindow,
                 onSave = viewModel::saveSettings,
                 modifier = Modifier.padding(padding),
             )
@@ -194,6 +204,7 @@ fun AgentApp(viewModel: ChatViewModel = hiltViewModel()) {
             onModelChanged = viewModel::updateModel,
             onSearchApiKeyChanged = viewModel::updateSearchApiKey,
             onToggleSearch = viewModel::toggleSearchEnabled,
+            onToggleFloatingWindow = viewModel::toggleFloatingWindow,
             onSave = { viewModel.saveSettings(); showSettings = false },
             onDismiss = { showSettings = false },
         )
@@ -554,6 +565,7 @@ private fun SettingsScreen(
     onModelChanged: (String) -> Unit,
     onSearchApiKeyChanged: (String) -> Unit,
     onToggleSearch: () -> Unit,
+    onToggleFloatingWindow: () -> Unit,
     onSave: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -565,7 +577,63 @@ private fun SettingsScreen(
         Text("支持任意 OpenAI 兼容 API。Key 使用 Android Keystore 加密保存。", color = MaterialTheme.colorScheme.onSurfaceVariant)
         ModelFields(state, onBaseUrlChanged, onApiKeyChanged, onModelChanged)
         SearchFields(state, onSearchApiKeyChanged, onToggleSearch)
+        SystemFeaturesFields(state, onToggleFloatingWindow)
         Button(onClick = onSave, modifier = Modifier.fillMaxWidth()) { Text("保存配置") }
+    }
+}
+
+@Composable
+private fun SystemFeaturesFields(
+    state: ChatUiState,
+    onToggleFloatingWindow: () -> Unit,
+) {
+    Text("系统增强", style = MaterialTheme.typography.titleMedium)
+    // 悬浮窗开关
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("悬浮窗模式", modifier = Modifier.weight(1f))
+        Switch(
+            checked = state.floatingWindowEnabled,
+            onCheckedChange = { onToggleFloatingWindow() },
+        )
+    }
+    Text(
+        text = when {
+            state.floatingWindowEnabled -> "悬浮窗已开启，可在任意界面快速发起对话"
+            else -> "开启后在任意界面显示悬浮球，点击可快速发起对话"
+        },
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    // 无障碍服务状态
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("无障碍服务", modifier = Modifier.weight(1f))
+        Text(
+            text = if (state.accessibilityEnabled) "已启用" else "未启用",
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (state.accessibilityEnabled) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.error,
+        )
+    }
+    // Root 状态
+    state.rootAvailable?.let { root ->
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Root 权限", modifier = Modifier.weight(1f))
+            Text(
+                text = if (root) "已检测到" else "未检测到",
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (root) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -641,6 +709,7 @@ private fun SettingsDialog(
     onModelChanged: (String) -> Unit,
     onSearchApiKeyChanged: (String) -> Unit,
     onToggleSearch: () -> Unit,
+    onToggleFloatingWindow: () -> Unit,
     onSave: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -651,6 +720,7 @@ private fun SettingsDialog(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 ModelFields(state, onBaseUrlChanged, onApiKeyChanged, onModelChanged)
                 SearchFields(state, onSearchApiKeyChanged, onToggleSearch)
+                SystemFeaturesFields(state, onToggleFloatingWindow)
             }
         },
         confirmButton = { Button(onClick = onSave) { Text("保存") } },

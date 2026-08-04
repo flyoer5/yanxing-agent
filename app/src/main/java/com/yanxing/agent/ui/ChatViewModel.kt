@@ -1,6 +1,9 @@
 package com.yanxing.agent.ui
 
+import android.content.Context
+import android.content.Intent
 import android.net.Uri
+import android.provider.Settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.yanxing.agent.data.Attachment
@@ -15,8 +18,11 @@ import com.yanxing.agent.network.ChatMessageDto
 import com.yanxing.agent.network.LlmClient
 import com.yanxing.agent.network.SearchResult
 import com.yanxing.agent.network.WebSearchClient
+import com.yanxing.agent.service.FloatingWindowService
+import com.yanxing.agent.service.RootShell
+import com.yanxing.agent.service.ScreenReaderAccessibilityService
 import dagger.hilt.android.lifecycle.HiltViewModel
-import java.util.UUID
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,6 +33,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class ChatViewModel @Inject constructor(
+    @ApplicationContext private val _context: Context,
     private val repository: ChatRepository,
     private val settings: ModelSettingsStore,
     private val llmClient: LlmClient,
@@ -253,6 +260,27 @@ class ChatViewModel @Inject constructor(
         _uiState.update { it.copy(searchEnabled = newValue) }
     }
 
+    /** 切换悬浮窗模式 */
+    fun toggleFloatingWindow() {
+        val context = _context
+        val newValue = !uiState.value.floatingWindowEnabled
+        if (newValue) {
+            // 开启前检查悬浮窗权限
+            if (!FloatingWindowService.hasOverlayPermission(context)) {
+                _uiState.update { it.copy(error = "需要先授予悬浮窗权限") }
+                openOverlaySettings(context)
+                return
+            }
+            FloatingWindowService.start(context)
+            settings.floatingWindowEnabled = true
+            _uiState.update { it.copy(floatingWindowEnabled = true) }
+        } else {
+            FloatingWindowService.stop(context)
+            settings.floatingWindowEnabled = false
+            _uiState.update { it.copy(floatingWindowEnabled = false) }
+        }
+    }
+
     fun clearError() = _uiState.update { it.copy(error = null) }
 
     private suspend fun extractMemory(text: String) {
@@ -288,7 +316,31 @@ class ChatViewModel @Inject constructor(
                 apiKey = settings.readApiKey(),
                 searchApiKey = settings.readSearchApiKey(),
                 searchEnabled = settings.searchEnabled,
+                floatingWindowEnabled = settings.floatingWindowEnabled,
+                accessibilityEnabled = isAccessibilityEnabled(),
+                rootAvailable = RootShell.isRootAvailable(),
             )
+        }
+    }
+
+    private fun isAccessibilityEnabled(): Boolean {
+        val expectedId = "${_context.packageName}/${ScreenReaderAccessibilityService::class.java.name}"
+        val enabled = Settings.Secure.getString(
+            _context.contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+        ) ?: return false
+        return enabled.split(':').any { it.equals(expectedId, ignoreCase = true) }
+    }
+
+    private fun openOverlaySettings(context: Context) {
+        try {
+            val intent = Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:${context.packageName}"),
+            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+        } catch (_: Exception) {
+            // 某些设备可能没有该 Intent，忽略
         }
     }
 
@@ -323,6 +375,9 @@ data class ChatUiState(
     val searching: Boolean = false,
     val searchResultCount: Int = 0,
     val searchApiKey: String = "",
+    val floatingWindowEnabled: Boolean = false,
+    val rootAvailable: Boolean? = null,
+    val accessibilityEnabled: Boolean = false,
     val baseUrl: String = "",
     val apiKey: String = "",
     val model: String = "",

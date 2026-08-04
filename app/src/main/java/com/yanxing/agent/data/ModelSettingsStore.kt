@@ -33,6 +33,11 @@ class ModelSettingsStore @Inject constructor(
         get() = preferences.getBoolean(KEY_SEARCH_ENABLED, false)
         set(value) = preferences.edit().putBoolean(KEY_SEARCH_ENABLED, value).apply()
 
+    /** 悬浮窗是否开启（用户意图） */
+    var floatingWindowEnabled: Boolean
+        get() = preferences.getBoolean(KEY_FLOATING_WINDOW, false)
+        set(value) = preferences.edit().putBoolean(KEY_FLOATING_WINDOW, value).apply()
+
     fun saveSearchApiKey(value: String) {
         if (value.isBlank()) {
             preferences.edit().remove(KEY_SEARCH_API_KEY).remove(KEY_SEARCH_API_IV).apply()
@@ -115,6 +120,7 @@ class ModelSettingsStore @Inject constructor(
         const val KEY_SEARCH_ENABLED = "search_enabled"
         const val KEY_SEARCH_API_KEY = "search_api_key"
         const val KEY_SEARCH_API_IV = "search_api_iv"
+        const val KEY_FLOATING_WINDOW = "floating_window"
         const val KEY_ALIAS = "yanxing_api_key"
         const val ANDROID_KEYSTORE = "AndroidKeyStore"
         const val TRANSFORMATION = "AES/GCM/NoPadding"

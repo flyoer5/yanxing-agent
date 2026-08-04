@@ -1,7 +1,7 @@
-# 言行 Agent 第八阶段开发计划
+# 言行 Agent 第九阶段开发计划
 
 ## 目标
-为对话增加联网搜索能力：用户问题触发搜索，结果注入模型上下文，让模型基于最新信息回答。
+实现系统级增强：悬浮窗快捷入口、无障碍服务读取屏幕内容、Root 权限增强操作。
 
 ## 阶段
 - [complete] 1. 项目骨架与 CI
@@ -11,34 +11,35 @@
 - [complete] 5. 单元测试、文档、推送验证
 - [complete] 6. 多会话、分组与长期记忆
 - [complete] 7. 语音、图片/文件输入输出
-- [in_progress] 8. 联网搜索
-- [pending] 9. 悬浮窗、无障碍与 Root 增强
+- [complete] 8. 联网搜索
+- [in_progress] 9. 悬浮窗、无障碍与 Root 增强
 
 ## 本阶段验收标准
-- [ ] 设置页可配置搜索 API Key（Tavily 或 Serper）
-- [ ] 聊天输入框旁有"联网搜索"开关
-- [ ] 开启后，发送消息自动搜索并注入结果
-- [ ] 模型回答基于搜索结果（系统消息注入）
-- [ ] 显示搜索结果来源/引用
-- [ ] 搜索失败不影响普通对话
+- [ ] 设置页可开启"悬浮窗模式"
+- [ ] 悬浮球可拖动、点击展开快捷面板
+- [ ] 悬浮窗可快速发起对话/语音输入
+- [ ] 无障碍服务可读取当前屏幕文字
+- [ ] Root 检测与增强命令执行
 - [ ] GitHub Actions 编译、测试成功
 
 ## 技术方案
 
-### 搜索提供方
-- **Tavily Search API**：专为 LLM 设计，返回干净摘要
-  - POST `https://api.tavily.com/search`
-  - 参数：api_key, query, max_results, search_depth
-  - 返回：results[] { title, url, content, score }
-- **Serper API**：Google 搜索结果
-  - POST `https://google.serper.dev/search`
-  - 参数：q, num
-  - 返回：organic[] { title, link, snippet }
+### 悬浮窗
+- `SYSTEM_ALERT_WINDOW` 权限 + 前台服务
+- `TYPE_APPLICATION_OVERLAY` 窗口，View 实现（避免 Compose 在悬浮窗的复杂度）
+- 悬浮球可拖动，点击展开迷你面板
+- 迷你面板：文字输入、语音按钮、打开主界面
 
-### 架构
-- 新增 `WebSearchClient` 接口 + `TavilySearchClient` 实现
-- 搜索结果转成纯文本摘要，注入 system 消息
-- 聊天页面显示"已联网搜索 N 条结果"并附引用列表
+### 无障碍服务
+- `AccessibilityService` + `BIND_ACCESSIBILITY_SERVICE` 权限
+- `accessibility_service_config.xml` 声明
+- 读取当前界面文本（eventType TYPE_WINDOW_CONTENT_CHANGED / TYPE_WINDOW_STATE_CHANGED）
+- 通过 Broadcast/静态单例向 App 传递屏幕内容
+
+### Root 增强
+- 检测 `su` 是否存在（PATH 中查找）
+- `su -c` 执行命令（仅限用户显式授权的场景）
+- 提供 `RootShell` 封装，失败时优雅降级
 
 ## 错误记录
 | 错误 | 尝试 | 处理 |
