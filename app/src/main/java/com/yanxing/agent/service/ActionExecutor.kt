@@ -174,9 +174,12 @@ object ActionExecutor {
     }
 
 
+    }
+
     sealed class ActionType {
         data class CLICK(val query: String) : ActionType()
         data class LONG_PRESS(val query: String) : ActionType()
         data class SWIPE(val direction: SwipeDirection) : ActionType()
         data class INPUT_TEXT(val query: String, val text: String) : ActionType()
     }
+}
