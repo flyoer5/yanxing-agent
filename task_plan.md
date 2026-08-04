@@ -9,7 +9,7 @@
 - [complete] 3. OpenAI 兼容 API 与流式输出
 - [complete] 4. Compose 聊天与模型配置界面
 - [complete] 5. 单元测试、文档、推送验证
-- [in_progress] 6. 多会话、分组与长期记忆
+- [complete] 6. 多会话、分组与长期记忆
 - [pending] 7. 语音、图片/文件
 - [pending] 8. 联网搜索
 - [pending] 9. 悬浮窗、无障碍与 Root 增强
