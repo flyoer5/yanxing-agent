@@ -13,6 +13,8 @@ import com.yanxing.agent.data.ModelSettingsStore
 import com.yanxing.agent.network.ChatCompletionRequest
 import com.yanxing.agent.network.ChatMessageDto
 import com.yanxing.agent.network.LlmClient
+import com.yanxing.agent.network.SearchResult
+import com.yanxing.agent.network.WebSearchClient
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,6 +30,7 @@ class ChatViewModel @Inject constructor(
     private val repository: ChatRepository,
     private val settings: ModelSettingsStore,
     private val llmClient: LlmClient,
+    private val webSearchClient: WebSearchClient,
 ) : ViewModel() {
     private val currentConversationId = MutableStateFlow("")
     private val _uiState = MutableStateFlow(ChatUiState())
@@ -65,6 +68,7 @@ class ChatViewModel @Inject constructor(
     fun updateApiKey(value: String) = _uiState.update { it.copy(apiKey = value) }
     fun updateModel(value: String) = _uiState.update { it.copy(model = value) }
     fun updateDraft(value: String) = _uiState.update { it.copy(draft = value) }
+    fun updateSearchApiKey(value: String) = _uiState.update { it.copy(searchApiKey = value) }
 
     // ===== 附件管理 =====
 
@@ -93,6 +97,8 @@ class ChatViewModel @Inject constructor(
         settings.baseUrl = uiState.value.baseUrl
         settings.model = uiState.value.model
         settings.saveApiKey(uiState.value.apiKey)
+        settings.saveSearchApiKey(uiState.value.searchApiKey)
+        settings.searchEnabled = uiState.value.searchEnabled
         _uiState.update { it.copy(settingsSaved = true) }
     }
 
@@ -163,6 +169,24 @@ class ChatViewModel @Inject constructor(
             val history = repository.messagesForRequest(conversationId)
             val memoryContext = relevantMemories(text, current.memories)
             _uiState.update { it.copy(memoryReferenceCount = memoryContext.size) }
+
+            // 联网搜索：开启且配置了 Key 时，将搜索结果注入上下文
+            val searchResults: List<SearchResult> = if (current.searchEnabled && text.isNotBlank()) {
+                _uiState.update { it.copy(searching = true) }
+                val searchKey = settings.readSearchApiKey()
+                if (searchKey.isBlank()) {
+                    _uiState.update { it.copy(searching = false, error = "未配置搜索 API Key（Tavily）") }
+                    emptyList()
+                } else {
+                    val result = webSearchClient.search(text, searchKey)
+                    _uiState.update { it.copy(searching = false) }
+                    result.getOrElse { error ->
+                        _uiState.update { it.copy(error = "联网搜索失败：${error.message ?: "未知错误"}") }
+                        emptyList()
+                    }
+                }
+            } else emptyList()
+
             val requestMessages = buildList {
                 if (memoryContext.isNotEmpty()) {
                     add(ChatMessageDto(
@@ -171,8 +195,22 @@ class ChatViewModel @Inject constructor(
                             memoryContext.joinToString("\n") { "- ${it.content}" },
                     ))
                 }
+                if (searchResults.isNotEmpty()) {
+                    add(ChatMessageDto(
+                        role = "system",
+                        content = buildString {
+                            append("以下是针对用户问题的联网搜索结果（仅供参考，请优先基于这些信息回答，并标注来源）：\n\n")
+                            searchResults.forEachIndexed { index, result ->
+                                append("${index + 1}. ${result.title}\n")
+                                append("   来源：${result.url}\n")
+                                append("   摘要：${result.snippet}\n\n")
+                            }
+                        },
+                    ))
+                }
                 addAll(history.map { it.toChatMessageDto() })
             }
+            _uiState.update { it.copy(searchResultCount = searchResults.size) }
             val request = ChatCompletionRequest(
                 model = current.model,
                 messages = requestMessages,
@@ -192,16 +230,29 @@ class ChatViewModel @Inject constructor(
             }
             result.onSuccess {
                 repository.appendMessage(conversationId, "assistant", assistant.toString())
-                _uiState.update { it.copy(isSending = false, inProgressReply = "") }
+                _uiState.update { it.copy(isSending = false, inProgressReply = "", searchResultCount = 0) }
             }.onFailure { error ->
                 _uiState.update {
-                    it.copy(isSending = false, inProgressReply = "", error = error.message ?: "请求失败")
+                    it.copy(
+                        isSending = false,
+                        inProgressReply = "",
+                        searchResultCount = 0,
+                        error = error.message ?: "请求失败",
+                    )
                 }
             }
         }
     }
 
     fun toggleStreaming() = _uiState.update { it.copy(streaming = !it.streaming) }
+
+    /** 切换联网搜索开关 */
+    fun toggleSearchEnabled() {
+        val newValue = !uiState.value.searchEnabled
+        settings.searchEnabled = newValue
+        _uiState.update { it.copy(searchEnabled = newValue) }
+    }
+
     fun clearError() = _uiState.update { it.copy(error = null) }
 
     private suspend fun extractMemory(text: String) {
@@ -235,6 +286,8 @@ class ChatViewModel @Inject constructor(
                 baseUrl = settings.baseUrl,
                 model = settings.model,
                 apiKey = settings.readApiKey(),
+                searchApiKey = settings.readSearchApiKey(),
+                searchEnabled = settings.searchEnabled,
             )
         }
     }
@@ -266,6 +319,10 @@ data class ChatUiState(
     val draft: String = "",
     val pendingAttachments: List<Attachment> = emptyList(), // 待发送的附件
     val voiceInputMode: Boolean = false,
+    val searchEnabled: Boolean = false,
+    val searching: Boolean = false,
+    val searchResultCount: Int = 0,
+    val searchApiKey: String = "",
     val baseUrl: String = "",
     val apiKey: String = "",
     val model: String = "",

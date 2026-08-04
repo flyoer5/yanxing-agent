@@ -38,6 +38,7 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Send
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
@@ -162,6 +163,7 @@ fun AgentApp(viewModel: ChatViewModel = hiltViewModel()) {
                 onAddAttachment = viewModel::addAttachment,
                 onRemoveAttachment = viewModel::removeAttachment,
                 onVoiceInput = { viewModel.setVoiceInputMode(true) },
+                onToggleSearch = viewModel::toggleSearchEnabled,
                 modifier = Modifier.padding(padding),
             )
             1 -> MemoryScreen(
@@ -175,6 +177,8 @@ fun AgentApp(viewModel: ChatViewModel = hiltViewModel()) {
                 onBaseUrlChanged = viewModel::updateBaseUrl,
                 onApiKeyChanged = viewModel::updateApiKey,
                 onModelChanged = viewModel::updateModel,
+                onSearchApiKeyChanged = viewModel::updateSearchApiKey,
+                onToggleSearch = viewModel::toggleSearchEnabled,
                 onSave = viewModel::saveSettings,
                 modifier = Modifier.padding(padding),
             )
@@ -187,6 +191,8 @@ fun AgentApp(viewModel: ChatViewModel = hiltViewModel()) {
             onBaseUrlChanged = viewModel::updateBaseUrl,
             onApiKeyChanged = viewModel::updateApiKey,
             onModelChanged = viewModel::updateModel,
+            onSearchApiKeyChanged = viewModel::updateSearchApiKey,
+            onToggleSearch = viewModel::toggleSearchEnabled,
             onSave = { viewModel.saveSettings(); showSettings = false },
             onDismiss = { showSettings = false },
         )
@@ -217,6 +223,7 @@ private fun ChatScreen(
     onAddAttachment: (Attachment) -> Unit,
     onRemoveAttachment: (Int) -> Unit,
     onVoiceInput: () -> Unit,
+    onToggleSearch: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -280,6 +287,32 @@ private fun ChatScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 items(state.messages, key = { it.id }) { message -> MessageBubble(message) }
+                if (state.searching) {
+                    item(key = "searching") {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "正在联网搜索…",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+                if (state.searchResultCount > 0 && !state.searching) {
+                    item(key = "search-result") {
+                        Text(
+                            text = "已联网搜索 ${state.searchResultCount} 条结果并注入上下文",
+                            modifier = Modifier.padding(horizontal = 4.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
                 if (state.memoryReferenceCount > 0 && state.inProgressReply.isEmpty()) {
                     item(key = "memory-reference") {
                         Text(
@@ -352,6 +385,24 @@ private fun ChatScreen(
             )
             Spacer(Modifier.width(4.dp))
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                // 联网搜索开关
+                IconButton(
+                    onClick = onToggleSearch,
+                    enabled = !state.isSending,
+                ) {
+                    Icon(
+                        Icons.Outlined.Public,
+                        contentDescription = "联网搜索",
+                        tint = if (state.searchEnabled) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Text(
+                    if (state.searchEnabled) "联网" else "离线",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (state.searchEnabled) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 IconButton(onClick = onSend, enabled = canSend) {
                     if (state.isSending) {
                         CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
@@ -500,6 +551,8 @@ private fun SettingsScreen(
     onBaseUrlChanged: (String) -> Unit,
     onApiKeyChanged: (String) -> Unit,
     onModelChanged: (String) -> Unit,
+    onSearchApiKeyChanged: (String) -> Unit,
+    onToggleSearch: () -> Unit,
     onSave: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -510,8 +563,39 @@ private fun SettingsScreen(
         Text("模型配置", style = MaterialTheme.typography.headlineSmall)
         Text("支持任意 OpenAI 兼容 API。Key 使用 Android Keystore 加密保存。", color = MaterialTheme.colorScheme.onSurfaceVariant)
         ModelFields(state, onBaseUrlChanged, onApiKeyChanged, onModelChanged)
+        SearchFields(state, onSearchApiKeyChanged, onToggleSearch)
         Button(onClick = onSave, modifier = Modifier.fillMaxWidth()) { Text("保存配置") }
     }
+}
+
+@Composable
+private fun SearchFields(
+    state: ChatUiState,
+    onSearchApiKeyChanged: (String) -> Unit,
+    onToggleSearch: () -> Unit,
+) {
+    Text("联网搜索", style = MaterialTheme.typography.titleMedium)
+    OutlinedTextField(
+        value = state.searchApiKey,
+        onValueChange = onSearchApiKeyChanged,
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text("Tavily API Key") },
+        placeholder = { Text("tvly-...") },
+        singleLine = true,
+        visualTransformation = PasswordVisualTransformation(),
+    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("默认开启联网搜索", modifier = Modifier.weight(1f))
+        Switch(checked = state.searchEnabled, onCheckedChange = { onToggleSearch() })
+    }
+    Text(
+        "联网搜索使用 Tavily API（https://tavily.com），用于获取实时信息。",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @Composable
@@ -554,13 +638,20 @@ private fun SettingsDialog(
     onBaseUrlChanged: (String) -> Unit,
     onApiKeyChanged: (String) -> Unit,
     onModelChanged: (String) -> Unit,
+    onSearchApiKeyChanged: (String) -> Unit,
+    onToggleSearch: () -> Unit,
     onSave: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("模型设置") },
-        text = { ModelFields(state, onBaseUrlChanged, onApiKeyChanged, onModelChanged) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                ModelFields(state, onBaseUrlChanged, onApiKeyChanged, onModelChanged)
+                SearchFields(state, onSearchApiKeyChanged, onToggleSearch)
+            }
+        },
         confirmButton = { Button(onClick = onSave) { Text("保存") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
     )

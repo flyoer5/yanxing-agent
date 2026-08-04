@@ -28,6 +28,29 @@ class ModelSettingsStore @Inject constructor(
         get() = preferences.getString(KEY_MODEL, "") ?: ""
         set(value) = preferences.edit().putString(KEY_MODEL, value.trim()).apply()
 
+    /** 是否默认开启联网搜索 */
+    var searchEnabled: Boolean
+        get() = preferences.getBoolean(KEY_SEARCH_ENABLED, false)
+        set(value) = preferences.edit().putBoolean(KEY_SEARCH_ENABLED, value).apply()
+
+    fun saveSearchApiKey(value: String) {
+        if (value.isBlank()) {
+            preferences.edit().remove(KEY_SEARCH_API_KEY).remove(KEY_SEARCH_API_IV).apply()
+            return
+        }
+        val encrypted = encrypt(value)
+        preferences.edit()
+            .putString(KEY_SEARCH_API_KEY, encrypted.ciphertext)
+            .putString(KEY_SEARCH_API_IV, encrypted.iv)
+            .apply()
+    }
+
+    fun readSearchApiKey(): String = runCatching {
+        val ciphertext = preferences.getString(KEY_SEARCH_API_KEY, null) ?: return ""
+        val iv = preferences.getString(KEY_SEARCH_API_IV, null) ?: return ""
+        decrypt(ciphertext, iv)
+    }.getOrDefault("")
+
     fun saveApiKey(value: String) {
         val encrypted = encrypt(value)
         preferences.edit()
@@ -89,6 +112,9 @@ class ModelSettingsStore @Inject constructor(
         const val KEY_MODEL = "model"
         const val KEY_API_KEY = "api_key"
         const val KEY_API_IV = "api_iv"
+        const val KEY_SEARCH_ENABLED = "search_enabled"
+        const val KEY_SEARCH_API_KEY = "search_api_key"
+        const val KEY_SEARCH_API_IV = "search_api_iv"
         const val KEY_ALIAS = "yanxing_api_key"
         const val ANDROID_KEYSTORE = "AndroidKeyStore"
         const val TRANSFORMATION = "AES/GCM/NoPadding"

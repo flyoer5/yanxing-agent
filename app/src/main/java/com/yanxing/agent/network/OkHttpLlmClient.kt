@@ -127,4 +127,12 @@ object NetworkModule {
         json: Json,
         @IoDispatcher ioDispatcher: CoroutineDispatcher,
     ): LlmClient = OkHttpLlmClient(client, json, ioDispatcher)
+
+    @dagger.Provides
+    @javax.inject.Singleton
+    fun provideWebSearchClient(
+        client: OkHttpClient,
+        json: Json,
+        @IoDispatcher ioDispatcher: CoroutineDispatcher,
+    ): WebSearchClient = TavilySearchClient(client, json, ioDispatcher)
 }
