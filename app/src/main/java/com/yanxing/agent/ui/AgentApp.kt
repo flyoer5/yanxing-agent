@@ -1,5 +1,7 @@
 package com.yanxing.agent.ui
 
+package com.yanxing.agent.ui
+
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
@@ -48,6 +50,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -82,6 +85,8 @@ import com.yanxing.agent.data.ChatMessage
 import com.yanxing.agent.data.Conversation
 import com.yanxing.agent.data.ConversationGroup
 import com.yanxing.agent.data.Memory
+import com.yanxing.agent.data.ActionStatus
+import com.yanxing.agent.service.ScreenReaderAccessibilityService
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -190,6 +195,8 @@ fun AgentApp(
                 onSearchApiKeyChanged = viewModel::updateSearchApiKey,
                 onToggleSearch = viewModel::toggleSearchEnabled,
                 onToggleFloatingWindow = viewModel::toggleFloatingWindow,
+                onToggleActionMode = viewModel::toggleActionMode,
+                onStartActionMode = viewModel::startActionMode,
                 onSave = viewModel::saveSettings,
                 modifier = Modifier.padding(padding),
             )
@@ -278,7 +285,10 @@ private fun ChatScreen(
     }
 
     val canSend = (state.draft.isNotBlank() || state.pendingAttachments.isNotEmpty()) && !state.isSending
-
+    
+    // 行动模式下的特殊处理
+    val isActionMode = state.actionModeEnabled
+    
     Column(modifier = modifier.fillMaxSize()) {
         // 消息列表
         if (state.messages.isEmpty()) {
@@ -299,6 +309,84 @@ private fun ChatScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 items(state.messages, key = { it.id }) { message -> MessageBubble(message) }
+                
+                // 行动模式的状态和屏幕内容显示
+                if (isActionMode) {
+                    when (val status = state.actionStatus) {
+                        is ActionStatus.Readying -> {
+                            item(key = "action-loading") {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("正在读取当前界面…", style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        }
+                        is ActionStatus.Ready -> {
+                            item(key = "screen-content") {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                    colors = androidx.compose.material3.CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    ),
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(12.dp),
+                                    ) {
+                                        Text(
+                                            text = "${state.lastScreenPackage.take(24)} (已就绪)",
+                                            style = MaterialTheme.typography.titleMedium,
+                                        )
+                                        Spacer(Modifier.height(4.dp))
+                                        Text(
+                                            text = status.screenText.replace("\n", " "),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        is ActionStatus.Executing -> {
+                            item(key = "action-executing") {
+                                LinearProgressIndicator(
+                                    progress = (status.current.toFloat() / status.total.toFloat()),
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                                Text(
+                                    text = "正在执行 ${status.current}/${status.total}: ${status.actionDesc ?: ""}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                )
+                            }
+                        }
+                        is ActionStatus.Completed -> {
+                            item(key = "action-result") {
+                                val success = status.successCount == status.totalCount
+                                Card(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                    colors = androidx.compose.material3.CardDefaults.cardColors(
+                                        containerColor = if (success) MaterialTheme.colorScheme.primaryContainer
+                                        else MaterialTheme.colorScheme.errorContainer,
+                                    ),
+                                ) {
+                                    Text(
+                                        text = "执行完成：${status.successCount}/${status.totalCount} 成功",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        modifier = Modifier.padding(8.dp),
+                                        color = if (success) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.error,
+                                    )
+                                }
+                            }
+                        }
+                        is ActionStatus.Idle -> {}
+                    }
+                }
+                
                 if (state.searching) {
                     item(key = "searching") {
                         Row(
@@ -566,6 +654,8 @@ private fun SettingsScreen(
     onSearchApiKeyChanged: (String) -> Unit,
     onToggleSearch: () -> Unit,
     onToggleFloatingWindow: () -> Unit,
+    onToggleActionMode: () -> Unit,
+    onStartActionMode: () -> Unit,
     onSave: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -578,7 +668,85 @@ private fun SettingsScreen(
         ModelFields(state, onBaseUrlChanged, onApiKeyChanged, onModelChanged)
         SearchFields(state, onSearchApiKeyChanged, onToggleSearch)
         SystemFeaturesFields(state, onToggleFloatingWindow)
+        ActionModeFields(state, onToggleActionMode, onStartActionMode)
         Button(onClick = onSave, modifier = Modifier.fillMaxWidth()) { Text("保存配置") }
+    }
+}
+
+@Composable
+private fun ActionModeFields(
+    state: ChatUiState,
+    onToggleActionMode: () -> Unit,
+    onStartActionMode: () -> Unit,
+) {
+    Text("替我行动", style = MaterialTheme.typography.titleMedium)
+    
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("启用行动模式", modifier = Modifier.weight(1f))
+        Switch(checked = state.actionModeEnabled, onCheckedChange = { onToggleActionMode() })
+    }
+    Text(
+        text = if (state.actionModeEnabled) "已开启：可在聊天界面让 AI 控制其他 App" else "关闭状态",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    
+    Spacer(Modifier.height(8.dp))
+    
+    // 无障碍服务状态和行动入口
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text("无障碍服务", style = MaterialTheme.typography.labelMedium)
+            Text(
+                text = if (state.accessibilityEnabled) "已启用 ✓" else "未启用 ✗",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (state.accessibilityEnabled) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.error,
+            )
+        }
+        Button(
+            onClick = onStartActionMode,
+            enabled = state.accessibilityEnabled && state.actionModeEnabled,
+        ) {
+            Text("开始行动")
+        }
+    }
+    
+    // 执行进度显示
+    when (val status = state.actionStatus) {
+        is ActionStatus.Idle -> {}
+        is ActionStatus.Readying -> {
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(8.dp))
+                Text("正在读取当前界面…", style = MaterialTheme.typography.labelSmall)
+            }
+        }
+        is ActionStatus.Ready -> {
+            Spacer(Modifier.height(8.dp))
+            Text("屏幕内容已就绪，可在聊天界面输入需求", style = MaterialTheme.typography.labelSmall)
+        }
+        is ActionStatus.Executing -> {
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(8.dp))
+                Text("正在执行：${status.current}/${status.total} (${status.actionDesc ?: ""})", style = MaterialTheme.typography.labelSmall)
+            }
+        }
+        is ActionStatus.Completed -> {
+            Spacer(Modifier.height(8.dp))
+            val successText = "${status.successCount}/${status.totalCount} 成功"
+            Text(successText, style = MaterialTheme.typography.labelSmall, color = if (status.successCount == status.totalCount) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+        }
     }
 }
 
