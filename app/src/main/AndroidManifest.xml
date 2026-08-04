@@ -9,8 +9,10 @@
     <application
         android:name=".YanxingApplication"
         android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
         android:label="言行 Agent"
         android:supportsRtl="true"
+        android:roundIcon="@mipmap/ic_launcher"
         android:theme="@style/Theme.YanxingAgent">
         <activity
             android:name=".MainActivity"
