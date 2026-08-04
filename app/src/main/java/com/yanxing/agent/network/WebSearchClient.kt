@@ -35,41 +35,44 @@ class TavilySearchClient @Inject constructor(
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : WebSearchClient {
 
-    override suspend fun search(query: String, apiKey: String): Result<List<SearchResult>> = try {
-        if (apiKey.isBlank()) return Result.failure(IllegalStateException("未配置搜索 API Key"))
-        withContext(ioDispatcher) {
-            val body = json.encodeToString(
-                TavilyRequest(
-                    api_key = apiKey,
-                    query = query,
-                    max_results = 5,
-                    search_depth = "basic",
-                    include_answer = false,
-                )
-            ).toRequestBody(JSON)
+    override suspend fun search(query: String, apiKey: String): Result<List<SearchResult>> {
+        return try {
+            if (apiKey.isBlank()) return Result.failure(IllegalStateException("未配置搜索 API Key"))
+            withContext(ioDispatcher) {
+                val body = json.encodeToString(
+                    TavilyRequest.serializer(),
+                    TavilyRequest(
+                        api_key = apiKey,
+                        query = query,
+                        max_results = 5,
+                        search_depth = "basic",
+                        include_answer = false,
+                    ),
+                ).toRequestBody(JSON)
 
-            val request = Request.Builder()
-                .url(TAVILY_ENDPOINT)
-                .header("Content-Type", "application/json")
-                .post(body)
-                .build()
+                val request = Request.Builder()
+                    .url(TAVILY_ENDPOINT)
+                    .header("Content-Type", "application/json")
+                    .post(body)
+                    .build()
 
-            httpClient.newCall(request).execute().use { response ->
-                check(response.isSuccessful) { "搜索失败：HTTP ${response.code}" }
-                val parsed = json.decodeFromString<TavilyResponse>(response.body?.string().orEmpty())
-                parsed.results.map { result ->
-                    SearchResult(
-                        title = result.title,
-                        url = result.url,
-                        snippet = result.content,
-                    )
+                httpClient.newCall(request).execute().use { response ->
+                    check(response.isSuccessful) { "搜索失败：HTTP ${response.code}" }
+                    val parsed = json.decodeFromString<TavilyResponse>(response.body?.string().orEmpty())
+                    parsed.results.map { result ->
+                        SearchResult(
+                            title = result.title,
+                            url = result.url,
+                            snippet = result.content,
+                        )
+                    }
                 }
-            }
-        }.let { Result.success(it) }
-    } catch (error: CancellationException) {
-        throw error
-    } catch (error: Throwable) {
-        Result.failure(error)
+            }.let { Result.success(it) }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            Result.failure(error)
+        }
     }
 
     private companion object {
