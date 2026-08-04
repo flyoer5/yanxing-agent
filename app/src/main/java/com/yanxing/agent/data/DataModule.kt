@@ -15,11 +15,19 @@ object DataModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
-        Room.databaseBuilder(context, AppDatabase::class.java, "yanxing.db").build()
+        Room.databaseBuilder(context, AppDatabase::class.java, "yanxing.db")
+            .fallbackToDestructiveMigration()
+            .build()
+
+    @Provides
+    fun provideGroupDao(database: AppDatabase): GroupDao = database.groupDao()
 
     @Provides
     fun provideConversationDao(database: AppDatabase): ConversationDao = database.conversationDao()
 
     @Provides
     fun provideMessageDao(database: AppDatabase): MessageDao = database.messageDao()
+
+    @Provides
+    fun provideMemoryDao(database: AppDatabase): MemoryDao = database.memoryDao()
 }

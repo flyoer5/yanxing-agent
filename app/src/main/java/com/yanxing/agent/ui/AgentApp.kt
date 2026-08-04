@@ -1,6 +1,9 @@
 package com.yanxing.agent.ui
 
 import com.yanxing.agent.data.ChatMessage
+import com.yanxing.agent.data.Conversation
+import com.yanxing.agent.data.ConversationGroup
+import com.yanxing.agent.data.Memory
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -63,6 +66,8 @@ fun AgentApp(viewModel: ChatViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var selectedTab by remember { mutableStateOf(0) }
     var showSettings by remember { mutableStateOf(false) }
+    var showSessions by remember { mutableStateOf(false) }
+    var showMemoryManager by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(state.error) {
@@ -71,12 +76,32 @@ fun AgentApp(viewModel: ChatViewModel = hiltViewModel()) {
     LaunchedEffect(state.settingsSaved) {
         if (state.settingsSaved) snackbarHostState.showSnackbar("模型配置已保存")
     }
+    LaunchedEffect(state.memoryNotice) {
+        state.memoryNotice?.let {
+            val result = snackbarHostState.showSnackbar(
+                message = "已记住：${it.content}",
+                actionLabel = "撤销",
+                duration = androidx.compose.material3.SnackbarDuration.Long,
+            )
+            if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+                viewModel.deleteMemory(it.id)
+            }
+            viewModel.dismissMemoryNotice()
+        }
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
                 title = { Text(if (selectedTab == 0) "言行 Agent" else tabTitle(selectedTab)) },
+                navigationIcon = {
+                    if (selectedTab == 0) {
+                        IconButton(onClick = { showSessions = true }) {
+                            Icon(Icons.Outlined.Chat, contentDescription = "会话列表")
+                        }
+                    }
+                },
                 actions = {
                     IconButton(onClick = { showSettings = true }) {
                         Icon(Icons.Outlined.Settings, contentDescription = "模型设置")
@@ -116,7 +141,12 @@ fun AgentApp(viewModel: ChatViewModel = hiltViewModel()) {
                 onToggleStreaming = viewModel::toggleStreaming,
                 modifier = Modifier.padding(padding),
             )
-            1 -> PlaceholderScreen("记忆功能将在后续阶段加入", Modifier.padding(padding))
+            1 -> MemoryScreen(
+                memories = state.memories,
+                onDelete = viewModel::deleteMemory,
+                onClearAll = viewModel::clearAllMemories,
+                modifier = Modifier.padding(padding),
+            )
             else -> SettingsScreen(
                 state = state,
                 onBaseUrlChanged = viewModel::updateBaseUrl,
@@ -136,6 +166,20 @@ fun AgentApp(viewModel: ChatViewModel = hiltViewModel()) {
             onModelChanged = viewModel::updateModel,
             onSave = { viewModel.saveSettings(); showSettings = false },
             onDismiss = { showSettings = false },
+        )
+    }
+
+    if (showSessions) {
+        SessionsDialog(
+            conversations = state.conversations,
+            groups = state.groups,
+            selectedId = state.selectedConversationId,
+            onNew = { viewModel.newConversation(); showSessions = false },
+            onSelect = { viewModel.switchConversation(it); showSessions = false },
+            onDelete = viewModel::deleteConversation,
+            onCreateGroup = viewModel::createGroup,
+            onAssignGroup = viewModel::assignCurrentConversation,
+            onDismiss = { showSessions = false },
         )
     }
 }
@@ -172,6 +216,16 @@ private fun ChatScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 items(state.messages, key = { it.id }) { message -> MessageBubble(message) }
+                if (state.memoryReferenceCount > 0 && state.inProgressReply.isEmpty()) {
+                    item(key = "memory-reference") {
+                        Text(
+                            text = "本次使用了 ${state.memoryReferenceCount} 条记忆/历史内容",
+                            modifier = Modifier.padding(horizontal = 4.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
                 if (state.inProgressReply.isNotEmpty()) {
                     item(key = "in-progress") {
                         MessageBubble(ChatMessage("in-progress", "assistant", state.inProgressReply))
@@ -322,4 +376,105 @@ private fun PlaceholderScreen(text: String, modifier: Modifier = Modifier) {
 private fun tabTitle(index: Int) = when (index) {
     1 -> "记忆"
     else -> "设置"
+}
+
+@Composable
+private fun SessionsDialog(
+    conversations: List<Conversation>,
+    groups: List<ConversationGroup>,
+    selectedId: String,
+    onNew: () -> Unit,
+    onSelect: (String) -> Unit,
+    onDelete: (String) -> Unit,
+    onCreateGroup: (String) -> Unit,
+    onAssignGroup: (String?) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var newGroupName by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("会话") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onNew, modifier = Modifier.fillMaxWidth()) { Text("新建会话") }
+                if (groups.isNotEmpty()) {
+                    Text("当前会话分组", style = MaterialTheme.typography.labelLarge)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        TextButton(onClick = { onAssignGroup(null) }) { Text("未分组") }
+                        groups.forEach { group ->
+                            TextButton(onClick = { onAssignGroup(group.id) }) { Text(group.name) }
+                        }
+                    }
+                }
+                OutlinedTextField(
+                    value = newGroupName,
+                    onValueChange = { newGroupName = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("新建项目/主题分组") },
+                    singleLine = true,
+                    trailingIcon = {
+                        TextButton(onClick = { onCreateGroup(newGroupName); newGroupName = "" }) {
+                            Text("添加")
+                        }
+                    },
+                )
+                LazyColumn(modifier = Modifier.height(280.dp)) {
+                    items(conversations, key = { it.id }) { conversation ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            TextButton(onClick = { onSelect(conversation.id) }, modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = if (conversation.id == selectedId) "✓ ${conversation.title}" else conversation.title,
+                                    maxLines = 1,
+                                )
+                            }
+                            TextButton(onClick = { onDelete(conversation.id) }) { Text("删除") }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("关闭") } },
+    )
+}
+
+@Composable
+private fun MemoryScreen(
+    memories: List<Memory>,
+    onDelete: (String) -> Unit,
+    onClearAll: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("长期记忆", style = MaterialTheme.typography.headlineSmall)
+                Text("Agent 会从明确表达中自动记住信息", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            TextButton(onClick = onClearAll, enabled = memories.isNotEmpty()) { Text("清空") }
+        }
+        Spacer(Modifier.height(12.dp))
+        if (memories.isEmpty()) {
+            PlaceholderScreen("还没有长期记忆", Modifier.fillMaxWidth().weight(1f))
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(memories, key = { it.id }) { memory ->
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(memory.content)
+                                Text(memory.category, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                            }
+                            TextButton(onClick = { onDelete(memory.id) }) { Text("删除") }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

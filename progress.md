@@ -11,3 +11,6 @@
 - 通过 `git diff --check` 格式检查；本地无 Gradle/Android SDK，未执行本地编译。
 - 首次 GitHub Actions 构建因缺少 `android.useAndroidX=true` 失败，已修复并准备重新验证。
 - 第二次 GitHub Actions 构建成功：单元测试、Debug APK 编译和 Artifact 上传均通过。
+
+- 进入第二阶段：多会话、项目/主题分组和长期记忆。
+- 已更新第二阶段 task_plan.md 和 findings.md。
