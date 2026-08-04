@@ -114,6 +114,14 @@ data class ChatMessage(
     val attachments: List<Attachment> = emptyList(),
 )
 
+sealed class ActionStatus {
+    data object Idle : ActionStatus()
+    data object Readying : ActionStatus()
+    data class Ready(val screenText: String) : ActionStatus()
+    data class Executing(val current: Int, val total: Int, val actionDesc: String? = null) : ActionStatus()
+    data class Completed(val successCount: Int, val totalCount: Int) : ActionStatus()
+}
+
 data class Memory(
     val id: String,
     val content: String,

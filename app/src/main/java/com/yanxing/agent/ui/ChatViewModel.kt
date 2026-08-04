@@ -18,6 +18,7 @@ import com.yanxing.agent.network.ChatMessageDto
 import com.yanxing.agent.network.LlmClient
 import com.yanxing.agent.network.SearchResult
 import com.yanxing.agent.network.WebSearchClient
+import com.yanxing.agent.service.AIDecisionEngine
 import com.yanxing.agent.service.FloatingWindowService
 import com.yanxing.agent.service.RootShell
 import com.yanxing.agent.service.ScreenReaderAccessibilityService
@@ -265,7 +266,6 @@ class ChatViewModel @Inject constructor(
         val context = _context
         val newValue = !uiState.value.floatingWindowEnabled
         if (newValue) {
-            // 开启前检查悬浮窗权限
             if (!FloatingWindowService.hasOverlayPermission(context)) {
                 _uiState.update { it.copy(error = "需要先授予悬浮窗权限") }
                 openOverlaySettings(context)
@@ -278,6 +278,75 @@ class ChatViewModel @Inject constructor(
             FloatingWindowService.stop(context)
             settings.floatingWindowEnabled = false
             _uiState.update { it.copy(floatingWindowEnabled = false) }
+        }
+    }
+
+    // ===== 替我行动模式 =====
+    
+    fun toggleActionMode() {
+        _uiState.update { it.copy(actionModeEnabled = !it.actionModeEnabled) }
+    }
+
+    fun startActionMode() {
+        if (!ScreenReaderAccessibilityService.isConnected) {
+            _uiState.update { it.copy(error = "请先在设置中开启无障碍服务") }
+            return
+        }
+        _uiState.update { it.copy(actionStatus = ActionStatus.Readying) }
+        
+        viewModelScope.launch {
+            val screenText = extractScreenText()
+            _uiState.update { 
+                it.copy(
+                    actionStatus = ActionStatus.Ready(screenText),
+                    draft = "",
+                ) 
+            }
+        }
+    }
+
+    private suspend fun extractScreenText(): String {
+        val root = ScreenReaderAccessibilityService.rootInActiveWindow
+            ?: return "无法读取当前界面"
+        val pkg = ScreenReaderAccessibilityService.lastScreenPackage
+        val text = runCatching {
+            com.yanxing.agent.service.ActionExecutor.extractText(root).take(1000)
+        }.getOrElse { "读取失败：$it" }
+        return "当前界面：$pkg\n内容:\n$text"
+    }
+
+    fun executeAction(prompt: String, actions: List<AIDecisionEngine.Action>) {
+        if (!ScreenReaderAccessibilityService.isConnected) {
+            _uiState.update { it.copy(error = "无障碍服务未开启") }
+            return
+        }
+
+        _uiState.update { it.copy(actionStatus = ActionStatus.Executing(actions.size)) }
+        
+        viewModelScope.launch {
+            var successCount = 0
+            
+            for ((index, action) in actions.withIndex()) {
+                _uiState.update { 
+                    it.copy(actionStatus = ActionStatus.Executing(index + 1, actions.size, action.toDesc())) 
+                }
+                
+                val result = when (action) {
+                    is AIDecisionEngine.Action.Click -> com.yanxing.agent.service.ActionExecutor.click(action.query)
+                    is AIDecisionEngine.Action.LongPress -> com.yanxing.agent.service.ActionExecutor.longPress(action.query)
+                    is AIDecisionEngine.Action.Swipe -> com.yanxing.agent.service.ActionExecutor.swipe(action.direction)
+                    is AIDecisionEngine.Action.InputText -> com.yanxing.agent.service.ActionExecutor.inputText(action.query, action.text)
+                }
+                
+                if (result.success) successCount++
+            }
+            
+            _uiState.update { 
+                it.copy(
+                    actionStatus = ActionStatus.Completed(successCount, actions.size),
+                    error = null
+                ) 
+            }
         }
     }
 
@@ -378,6 +447,8 @@ data class ChatUiState(
     val floatingWindowEnabled: Boolean = false,
     val rootAvailable: Boolean? = null,
     val accessibilityEnabled: Boolean = false,
+    val actionModeEnabled: Boolean = false, // 替我行动模式开关
+    val actionStatus: ActionStatus = ActionStatus.Idle, // 当前行动状态
     val baseUrl: String = "",
     val apiKey: String = "",
     val model: String = "",
