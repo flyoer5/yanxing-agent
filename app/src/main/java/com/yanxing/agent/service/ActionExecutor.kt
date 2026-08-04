@@ -2,6 +2,7 @@ package com.yanxing.agent.service
 
 import android.view.accessibility.AccessibilityNodeInfo
 import java.util.LinkedList
+import com.yanxing.agent.service.AIDecisionEngine.SwipeDirection
 
 /**
  * ActionExecutor v2 - 基于无障碍服务的自动化执行引擎
@@ -172,7 +173,6 @@ object ActionExecutor {
         }
     }
 
-    enum class SwipeDirection { UP, DOWN, LEFT, RIGHT }
 
     sealed class ActionType {
         data class CLICK(val query: String) : ActionType()
