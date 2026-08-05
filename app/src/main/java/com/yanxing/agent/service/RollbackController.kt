@@ -18,7 +18,7 @@ object RollbackController {
      * @return Suggestion 或 null（无合适回滚策略）
      */
     fun suggestRollback(action: AIDecisionEngine.Action, currentPackage: String): Suggestion? = runCatching {
-        when (action) {
+        val suggestion = when (action) {
             is AIDecisionEngine.Action.Click -> Suggestion(
                 description = "返回上一页",
                 actions = listOf(AIDecisionEngine.Action.Back),
@@ -47,6 +47,7 @@ object RollbackController {
                 warning = null,
             )
         }
+        suggestion ?: null
     }.getOrNull()
 
     /** 获取相反方向的滑动 */
