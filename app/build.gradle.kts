@@ -1,3 +1,5 @@
+import java.io.File
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -17,7 +19,7 @@ val fixedKeyPassword: String? = System.getenv("YANXING_KEY_PASSWORD")?.takeIf { 
 val useFixedSigning: Boolean = fixedKeystorePath != null && fixedKeystorePassword != null
 
 if (fixedKeystorePath != null) {
-    require(java.io.File(fixedKeystorePath).exists()) {
+    require(File(fixedKeystorePath).exists()) {
         "固定签名 keystore 不存在：$fixedKeystorePath"
     }
     require(fixedKeystorePassword != null) { "缺少 YANXING_KEYSTORE_PASSWORD" }
