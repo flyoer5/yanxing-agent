@@ -1,7 +1,7 @@
-# 言行 Agent 第十一阶段开发计划
+# 言行 Agent 第十二阶段开发计划
 
 ## 目标
-实现多轮行动决策：执行完一组动作后回传结果给 LLM，根据新屏幕继续决策，直到任务完成或达到轮次上限。
+实现执行停止机制 + 悬浮球语音输入，提升替我行动模式的可控性和便利性。
 
 ## 阶段
 - [complete] 1. 项目骨架与 CI
@@ -15,45 +15,52 @@
 - [complete] 9. 悬浮窗、无障碍与 Root 增强
 - [complete] 10. 替我行动（AI 决策 + 自动操作 + 操作日志）
 - [complete] 11. 多轮行动决策（执行结果回传 + 继续决策）+ 固定签名
+- [in-progress] 12. 执行停止 + 悬浮球语音输入
 
 ## 本阶段验收标准
-- [x] 动作组执行完后自动读取新屏幕并回传 LLM
-- [x] LLM 返回 `done` 或新动作组，未完成则进入下一轮确认
-- [x] 达到轮次上限（5 轮）自动结束，不无限循环
-- [x] UI 显示"AI 正在分析第 N 轮"状态
-- [x] AIDecisionEngine 单元测试覆盖 done/actions 解析
-- [x] 修复"替我行动"主链路未接线（executeAction 为死代码）
-- [x] 修复单动作任务被跳过执行的顺序缺陷
-- [x] APK 使用固定签名，构建产物可覆盖安装
-- [x] GitHub Actions 编译、测试成功
+- [ ] `FloatingProgressOverlay` 显示"停止"按钮，点击时触发停止信号
+- [ ] `ChatViewModel` 增加 `stopAction()` 方法和停止标志位
+- [ ] `executePendingAction` / `continueDecision` 每轮检查标志位，已停止则提前终止
+- [ ] 停止后记录日志并重置上下文，UI 显示"已停止"状态
+- [ ] `floating_panel.xml` 布局添加语音按钮
+- [ ] 语音按钮调用 `android-speech listen`，识别结果填充到输入框
+- [ ] 识别失败或超时时显示错误提示
+- [ ] 增加 `ActionExecutorTest` 单元测试（覆盖停止逻辑）
+- [ ] GitHub Actions 编译、测试成功
 
 ## 技术方案
 
-### 悬浮窗
-- `SYSTEM_ALERT_WINDOW` 权限 + 前台服务
-- `TYPE_APPLICATION_OVERLAY` 窗口，View 实现（避免 Compose 在悬浮窗的复杂度）
-- 悬浮球可拖动，点击展开迷你面板
-- 迷你面板：文字输入、语音按钮、打开主界面
+### 执行停止
+- **停止信号传递**：`FloatingProgressOverlay` 通过回调通知 `ChatViewModel.stopAction()`
+- **标志位检查**：在 `executePendingAction` 开头、`continueDecision` 发起 LLM 请求前检查 `actionCancelled` 标志
+- **清理与重置**：停止时调用 `finishAction("用户停止执行", isError = true)`，隐藏悬浮窗，清理上下文
+- **UI 反馈**：`FloatingProgressOverlay` 按钮文字为"停止"，点击后按钮变灰或文字改为"已停止"
 
-### 无障碍服务
-- `AccessibilityService` + `BIND_ACCESSIBILITY_SERVICE` 权限
-- `accessibility_service_config.xml` 声明
-- 读取当前界面文本（eventType TYPE_WINDOW_CONTENT_CHANGED / TYPE_WINDOW_STATE_CHANGED）
-- 通过 Broadcast/静态单例向 App 传递屏幕内容
+### 悬浮球语音输入
+- **布局修改**：`floating_panel.xml` 在"发送"按钮左侧增加语音按钮（IconButton，`@android:drawable/ic_btn_speak_now`）
+- **语音识别流程**：
+  1. 点击按钮时禁用输入框和按钮（显示加载状态）
+  2. 调用 `android-speech listen --language zh-CN --max 1 --timeout 30`
+  3. 解析 JSON：`{"success": true, "text": "识别结果"}` 或 `{"success": false, "error": "..."}`
+  4. 成功时填充到 `panel_input`，失败时 Toast 提示错误
+  5. 恢复按钮状态
+- **权限检查**：Manifest 已有 `RECORD_AUDIO`，但悬浮窗无法动态请求权限，首次失败时提示用户在主界面授权
 
-### Root 增强
-- 检测 `su` 是否存在（PATH 中查找）
-- `su -c` 执行命令（仅限用户显式授权的场景）
-- 提供 `RootShell` 封装，失败时优雅降级
+### 单元测试
+- **ActionExecutorTest**：测试停止标志位在执行中、继续决策时的行为
+- **AIDecisionEngineTest** 补充：验证 `done` 解析与 `generateContinuationPrompt` 格式
+
+## 文件清单
+| 文件 | 操作 | 说明 |
+|---|---|---|
+| `service/FloatingProgressOverlay.kt` | 修改 | 显示停止按钮，绑定回调 |
+| `ui/ChatViewModel.kt` | 修改 | 增加 `stopAction()` 和标志位检查 |
+| `data/ChatRepository.kt` | 无需修改 | `ActionStatus` 已有 `Canceled` 状态 |
+| `service/FloatingWindowService.kt` | 修改 | 语音按钮处理与 `android-speech` 调用 |
+| `res/layout/floating_panel.xml` | 修改 | 添加语音按钮 |
+| `test/.../ActionExecutorTest.kt` | 新建 | 停止逻辑单元测试 |
 
 ## 错误记录
 | 错误 | 尝试 | 处理 |
 |---|---:|---|
-| kapt correctErrorTypes 编译报错 | 临时注释该配置 | 保留注释，功能正常 |
-| FloatingProgressOverlay 注释未闭合 + 未声明的 CardView 依赖 | 修正注释、改用 LinearLayout+GradientDrawable 绘制卡片 | 已修复 |
-| R.color.primary / R.id 引用不存在 | 改为直接引用视图对象 | 已修复 |
-| Material3 无 successContainer | 改用 secondaryContainer | 已修复 |
-| ConcurrentLinkedQueue 无 addFirst | 改为 add() | 已修复 |
-| ActionExecutor 丢失根节点参数、回调参数不匹配 | 补 rootInActiveWindow 参数、修正回调 | 已修复 |
-| 缺失 Attachment / ActionLogEntity 导入 | 补齐导入 | 已修复 |
-| Hilt 缺少 ActionLogDao 提供方法 | DataModule 补 provideActionLogDao | 已修复 |
+| （待填充） | - | - |

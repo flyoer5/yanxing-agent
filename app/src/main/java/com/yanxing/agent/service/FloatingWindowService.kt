@@ -1,5 +1,6 @@
 package com.yanxing.agent.service
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
@@ -8,6 +9,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
@@ -23,6 +25,8 @@ import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
+import androidx.core.content.ContextCompat
 import com.yanxing.agent.MainActivity
 import com.yanxing.agent.R
 
@@ -37,6 +41,7 @@ class FloatingWindowService : Service() {
     private var floatView: View? = null
     private var panelView: View? = null
     private var layoutParams: WindowManager.LayoutParams? = null
+    private var voiceInput: VoiceInputController? = null
     private var initialX = 0
     private var initialY = 0
     private var initialTouchX = 0f
@@ -54,6 +59,8 @@ class FloatingWindowService : Service() {
     }
 
     override fun onDestroy() {
+        voiceInput?.release()
+        voiceInput = null
         removeFloatingViews()
         super.onDestroy()
     }
@@ -167,6 +174,9 @@ class FloatingWindowService : Service() {
         }
         // 发送文本
         val input = panel.findViewById<EditText>(R.id.panel_input)
+        // 语音输入：识别结果直接填入输入框，由用户确认后再发送
+        val voiceButton = panel.findViewById<ImageButton>(R.id.panel_voice)
+        voiceButton.setOnClickListener { startVoiceInput(input, voiceButton) }
         panel.findViewById<Button>(R.id.panel_send).setOnClickListener {
             val text = input.text.toString().trim()
             if (text.isNotEmpty()) {
@@ -188,7 +198,39 @@ class FloatingWindowService : Service() {
         }
     }
 
+    /**
+     * 悬浮窗内的语音识别。
+     * 悬浮窗不是 Activity，无法弹权限申请，未授权时引导用户到主界面处理。
+     */
+    private fun startVoiceInput(input: EditText, button: ImageButton) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            toast("请先在主界面授予录音权限")
+            return
+        }
+        val controller = voiceInput ?: VoiceInputController(this).also { voiceInput = it }
+        controller.start(
+            onResult = { text ->
+                val existing = input.text.toString().trim()
+                input.setText(if (existing.isEmpty()) text else "$existing $text")
+                input.setSelection(input.text.length)
+            },
+            onError = { message -> toast(message) },
+            onStateChanged = { listening ->
+                button.isEnabled = !listening
+                button.alpha = if (listening) 0.4f else 1f
+                if (listening) toast("请开始说话…")
+            },
+        )
+    }
+
+    private fun toast(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    }
+
     private fun hidePanel() {
+        voiceInput?.cancel()
         panelView?.let { view ->
             runCatching { windowManager.removeView(view) }
         }

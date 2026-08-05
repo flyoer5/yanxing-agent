@@ -30,3 +30,11 @@
 - 第十一阶段完成：多轮行动决策（最多 5 轮）、任务结果回传 LLM、Thinking 状态 UI、7 个单元测试，CI success（7e7ccd8）。
 - 修复替我行动主链路未接线缺陷（executeAction 为死代码）和单动作执行顺序缺陷。
 - 固定 APK 签名：证书 CN=Yanxing Agent，有效期 2053 年，CI success（058bf42），覆盖安装验证通过。
+- 第十一阶段收尾，CI 增加 Release 包与签名校验（8d81d96），Debug + Release 双构建验证通过。
+
+## 2026-08-05（第十二阶段）
+- **执行停止机制**：`ActionRunController` 独立控制轮次与停止标志；`FloatingProgressOverlay` 显示停止按钮并通知 ViewModel；所有执行/决策入口在关键点检查 `isCancelled` 提前终止；停止记为 `cancelled` 状态并写入日志。
+- **悬浮球语音输入**：`VoiceInputController` 封装 `SpeechRecognizer`；悬浮面板增加语音按钮，识别结果填入输入框；聊天界面麦克风按钮接通真实识别（修复既存空壳缺陷）。
+- **UI 改进**：Thinking/Executing/PendingConfirm 三个状态均显示停止按钮；`voiceInputMode` 从被动标记改为主动识别流程；进度计数跨轮重置，避免"3 / 2"错乱。
+- **权限补全**：Manifest 补齐 `RECORD_AUDIO` 权限与语音识别服务 query。
+- **单元测试**：新增 `ActionRunControllerTest`（10 个测试用例覆盖启动/停止/轮次推进/边界条件）。

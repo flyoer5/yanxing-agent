@@ -60,6 +60,7 @@ class BatchedLogWriter(
                 is ActionStatus.Completed -> 
                     if (status.successCount == status.totalCount) "success" else "failed"
                 is ActionStatus.Executing -> "running"
+                is ActionStatus.PendingConfirm.Canceled -> "cancelled"
                 else -> "unknown"
             },
             errorMessage = errorMessage,

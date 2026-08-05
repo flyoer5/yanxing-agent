@@ -21,11 +21,13 @@ import com.yanxing.agent.network.LlmClient
 import com.yanxing.agent.network.SearchResult
 import com.yanxing.agent.network.WebSearchClient
 import com.yanxing.agent.service.AIDecisionEngine
+import com.yanxing.agent.service.ActionRunController
 import com.yanxing.agent.service.BatchedLogWriter
 import com.yanxing.agent.service.FloatingProgressOverlay
 import com.yanxing.agent.service.FloatingWindowService
 import com.yanxing.agent.service.RootShell
 import com.yanxing.agent.service.ScreenReaderAccessibilityService
+import com.yanxing.agent.service.VoiceInputController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -56,9 +58,12 @@ class ChatViewModel @Inject constructor(
     // ===== 悬浮窗进度显示 =====
     private var progressOverlay: FloatingProgressOverlay? = null
 
+    // ===== 语音输入 =====
+    private val voiceInput = VoiceInputController(_context)
+
     // ===== 多轮行动决策上下文 =====
     private var actionGoal: String = ""        // 当前任务目标
-    private var actionRound: Int = 0           // 当前决策轮次
+    private val actionRunner = ActionRunController(MAX_ACTION_ROUNDS) // 轮次与停止控制
     private val actionHistory = StringBuilder() // 已执行动作摘要
 
     private companion object {
@@ -120,9 +125,31 @@ class ChatViewModel @Inject constructor(
         _uiState.update { it.copy(pendingAttachments = emptyList()) }
     }
 
-    // ===== 设置语音输入状态 =====
-    fun setVoiceInputMode(enabled: Boolean) {
-        _uiState.update { it.copy(voiceInputMode = enabled) }
+    // ===== 语音输入 =====
+
+    /** 开始语音识别，识别结果追加到当前草稿 */
+    fun startVoiceInput() {
+        if (uiState.value.voiceInputMode) return
+        voiceInput.start(
+            onResult = { text ->
+                _uiState.update { state ->
+                    val draft = if (state.draft.isBlank()) text else "${state.draft} $text"
+                    state.copy(draft = draft, voiceInputMode = false)
+                }
+            },
+            onError = { message ->
+                _uiState.update { it.copy(voiceInputMode = false, error = message) }
+            },
+            onStateChanged = { listening ->
+                _uiState.update { it.copy(voiceInputMode = listening) }
+            },
+        )
+    }
+
+    /** 取消进行中的语音识别 */
+    fun cancelVoiceInput() {
+        voiceInput.cancel()
+        _uiState.update { it.copy(voiceInputMode = false) }
     }
 
     fun saveSettings() {
@@ -360,7 +387,7 @@ class ChatViewModel @Inject constructor(
             return
         }
         actionGoal = goal
-        actionRound = 1
+        actionRunner.start()
         actionHistory.clear()
         _uiState.update { it.copy(draft = "", isSending = true, error = null, pendingAttachments = emptyList()) }
 
@@ -380,6 +407,8 @@ class ChatViewModel @Inject constructor(
             )
             val result = llmClient.complete(current.baseUrl, current.apiKey, request)
             _uiState.update { it.copy(isSending = false) }
+            // 请求期间用户可能已点停止，此时不再进入确认流程
+            if (actionRunner.isCancelled) return@launch
             result.onSuccess { reply ->
                 val sequence = AIDecisionEngine.parseLLMResponse(reply)
                 if (sequence.actions.isEmpty()) {
@@ -417,7 +446,7 @@ class ChatViewModel @Inject constructor(
             return
         }
         actionGoal = prompt.ifBlank { actionGoal }
-        actionRound = 1
+        actionRunner.start()
         actionHistory.clear()
 
         if (actions.isEmpty()) {
@@ -437,8 +466,43 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 用户请求停止执行（来自悬浮窗停止按钮或界面按钮）。
+     * 已在途的动作无法从系统层面撤回，这里保证不再发起新的动作和新的决策轮。
+     */
+    fun stopAction() {
+        if (!actionRunner.cancel()) return
+        progressOverlay?.markStopped()
+        val executed = actionHistory.toString().trim()
+        val summary = if (executed.isEmpty()) {
+            "已停止执行，没有动作被执行。"
+        } else {
+            "已停止执行。已完成的动作：\n$executed"
+        }
+        _uiState.update { it.copy(actionStatus = ActionStatus.PendingConfirm.Canceled) }
+        val conversationId = currentConversationId.value
+        viewModelScope.launch {
+            batchedLogWriter.addLog(
+                packageName = uiState.value.lastScreenPackage,
+                actionType = "stop",
+                targetElement = null,
+                details = summary,
+                status = ActionStatus.PendingConfirm.Canceled,
+                errorMessage = null,
+            )
+            batchedLogWriter.forceFlush()
+            repository.appendMessage(conversationId, "assistant", summary)
+        }
+        progressOverlay?.hide()
+        progressOverlay = null
+        actionRunner.reset()
+        actionGoal = ""
+        actionHistory.clear()
+    }
+
     /** 用户点击确认按钮，批准当前动作 */
     fun confirmCurrentAction(approved: Boolean) {
+        if (actionRunner.isCancelled) return
         val current = uiState.value.actionStatus
 
         if (current !is ActionStatus.PendingConfirm.Waiting) return
@@ -460,8 +524,9 @@ class ChatViewModel @Inject constructor(
                 )
             }
 
-            // 初始化悬浮窗进度
+            // 初始化悬浮窗进度：每组动作从头计数，避免跨轮累加导致 "3 / 2"
             ensureProgressOverlay()
+            if (index == 0) progressOverlay?.resetProgress()
             progressOverlay?.setTotalActions(actions.size)
             progressOverlay?.setCurrentAction(actions[index].toDesc())
             progressOverlay?.show()
@@ -481,6 +546,8 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             // 边界保护：nextIndex-1 必须是有效动作索引
             if (nextIndex <= 0 || nextIndex > actions.size) return@launch
+            // 用户已停止：不再触碰系统 UI
+            if (actionRunner.isCancelled) return@launch
 
             val action = actions[nextIndex - 1]
 
@@ -529,6 +596,9 @@ class ChatViewModel @Inject constructor(
                 )
             }
 
+            // 动作执行期间用户点了停止：保留已写入的日志，不再推进
+            if (actionRunner.isCancelled) return@launch
+
             if (result.success && nextIndex < actions.size) {
                 // 继续下一个动作
                 _uiState.update {
@@ -570,21 +640,23 @@ class ChatViewModel @Inject constructor(
      * 由 AI 判断任务完成（done）或继续规划下一组动作。
      */
     private fun continueDecision() {
-        if (actionRound >= MAX_ACTION_ROUNDS) {
+        if (actionRunner.isCancelled) return
+        if (!actionRunner.canContinue()) {
             finishAction("已达最大决策轮次（$MAX_ACTION_ROUNDS），任务停止", isError = true)
             return
         }
         val goal = actionGoal
-        _uiState.update { it.copy(actionStatus = ActionStatus.Thinking(actionRound)) }
+        _uiState.update { it.copy(actionStatus = ActionStatus.Thinking(actionRunner.round)) }
 
         viewModelScope.launch {
             val screenText = extractScreenText()
+            if (actionRunner.isCancelled) return@launch
             val current = uiState.value
             val systemPrompt = AIDecisionEngine.generateContinuationPrompt(
                 goal = goal,
                 currentScreen = screenText,
                 lastResult = actionHistory.toString().ifBlank { null },
-                round = actionRound,
+                round = actionRunner.round,
                 maxRounds = MAX_ACTION_ROUNDS,
             )
             val request = ChatCompletionRequest(
@@ -593,13 +665,14 @@ class ChatViewModel @Inject constructor(
                 stream = false,
             )
             val result = llmClient.complete(current.baseUrl, current.apiKey, request)
+            if (actionRunner.isCancelled) return@launch
             result.onSuccess { reply ->
                 val sequence = AIDecisionEngine.parseLLMResponse(reply)
                 when {
                     sequence.done -> finishAction(sequence.reason ?: "任务完成")
                     sequence.actions.isEmpty() -> finishAction(sequence.error ?: "任务完成")
                     else -> {
-                        actionRound++
+                        actionRunner.nextRound()
                         _uiState.update {
                             it.copy(actionStatus = ActionStatus.PendingConfirm.Waiting(sequence.actions, 0))
                         }
@@ -630,7 +703,7 @@ class ChatViewModel @Inject constructor(
 
     private fun resetActionContext() {
         actionGoal = ""
-        actionRound = 0
+        actionRunner.reset()
         actionHistory.clear()
     }
 
@@ -700,7 +773,9 @@ class ChatViewModel @Inject constructor(
     /** 确保悬浮窗已初始化 */
     private fun ensureProgressOverlay() {
         if (progressOverlay == null) {
-            progressOverlay = FloatingProgressOverlay(_context)
+            progressOverlay = FloatingProgressOverlay(_context).apply {
+                onStopRequested = { stopAction() }
+            }
         }
     }
 
@@ -708,7 +783,9 @@ class ChatViewModel @Inject constructor(
         super.onCleared()
         // 清理资源
         batchedLogWriter.shutdown()
+        voiceInput.release()
         progressOverlay?.hide()
+        progressOverlay = null
     }
 
     /** 将 ChatMessage 转换为 API 请求的 ChatMessageDto，支持多模态 */

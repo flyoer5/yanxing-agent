@@ -25,7 +25,10 @@ class FloatingProgressOverlay(private val context: Context) {
     private var failedCountTextView: TextView? = null
     private var currentTaskTextView: TextView? = null
     private var controlButtonView: android.widget.Button? = null
-    
+
+    /** 用户点击"停止执行"时的回调，由 ChatViewModel 注入 */
+    var onStopRequested: (() -> Unit)? = null
+
     // 内部状态流
     private val _currentState = MutableStateFlow(CheckboxState())
     val currentState: StateFlow<CheckboxState> = _currentState.asStateFlow()
@@ -35,8 +38,8 @@ class FloatingProgressOverlay(private val context: Context) {
         val success: Int = 0,
         val failed: Int = 0,
         val currentStep: String = "",
-        val isPaused: Boolean = false,
         val actionModeEnabled: Boolean = false,
+        val stopped: Boolean = false, // 用户已请求停止
     )
     
     init {
@@ -76,11 +79,18 @@ class FloatingProgressOverlay(private val context: Context) {
     }
     
     /**
-     * 切换暂停状态
+     * 标记为已停止：按钮置灰并显示"已停止"，等待执行链路收尾
      */
-    fun togglePause() {
-        val newState = !_currentState.value.isPaused
-        _currentState.value = _currentState.value.copy(isPaused = newState)
+    fun markStopped() {
+        _currentState.value = _currentState.value.copy(stopped = true, currentStep = "已停止")
+        updateUI()
+    }
+
+    /**
+     * 开始新任务时重置计数与停止标记
+     */
+    fun resetProgress() {
+        _currentState.value = CheckboxState(actionModeEnabled = _currentState.value.actionModeEnabled)
         updateUI()
     }
     
@@ -143,9 +153,6 @@ class FloatingProgressOverlay(private val context: Context) {
                 elevation = 8f
             }
             
-            val layout = View(context).apply {
-                setBackgroundColor(context.getColor(android.R.color.transparent))
-            }
             val dragStart = FloatArray(2)
             val windowStart = IntArray(2)
             cardView.setOnTouchListener { _, event ->
@@ -192,10 +199,6 @@ class FloatingProgressOverlay(private val context: Context) {
             }
             progressTextView = progressText
             
-            val statsContainer = View(context).apply {
-                setBackgroundColor(context.getColor(android.R.color.transparent))
-            }
-            
             val successCountText = TextView(context).apply {
                 text = "✓ 成功：0"
                 textSize = 14f
@@ -221,39 +224,24 @@ class FloatingProgressOverlay(private val context: Context) {
             currentTaskTextView = currentTaskText
             
             val controlButton = android.widget.Button(context).apply {
-                text = "暂停"
+                text = "停止执行"
                 textSize = 14f
                 setTextColor(context.getColor(android.R.color.white))
-                setBackgroundColor(context.getColor(android.R.color.holo_blue_dark))
+                setBackgroundColor(context.getColor(android.R.color.holo_red_dark))
                 setPadding(16, 8, 16, 8)
-                visibility = View.GONE
+                contentDescription = "停止替我行动执行"
             }
             controlButtonView = controlButton
-            
+
             controlButton.setOnClickListener {
-                togglePause()
-                updateControlButtonText()
+                if (_currentState.value.stopped) return@setOnClickListener
+                markStopped()
+                onStopRequested?.invoke()
             }
-            
-            // 触摸处理 - 拖拽功能
-            layout.setOnTouchListener { _, event ->
-                when (event.action) {
-                    android.view.MotionEvent.ACTION_DOWN -> {
-                        // 记录起始位置
-                        // TODO: 实现拖拽逻辑
-                    }
-                    android.view.MotionEvent.ACTION_MOVE -> {
-                        // 更新窗口位置
-                        // TODO: 实现拖拽逻辑
-                    }
-                }
-                false
-            }
-            
+
             cardView.addView(titleText)
             cardView.addView(statusText)
             cardView.addView(progressText)
-            cardView.addView(statsContainer)
             cardView.addView(successCountText)
             cardView.addView(failedCountText)
             cardView.addView(currentTaskText)
@@ -293,14 +281,16 @@ class FloatingProgressOverlay(private val context: Context) {
         progressTextView?.text = "进度：${state.success + state.failed} / ${state.total}"
         successCountTextView?.text = "✓ 成功：${state.success}"
         failedCountTextView?.text = "✗ 失败：${state.failed}"
-        controlButtonView?.visibility = if (state.isPaused) View.VISIBLE else View.GONE
-    }
-    
-    /**
-     * 更新控制按钮文字
-     */
-    private fun updateControlButtonText() {
-        controlButtonView?.text = if (_currentState.value.isPaused) "继续" else "暂停"
+        controlButtonView?.apply {
+            visibility = View.VISIBLE
+            isEnabled = !state.stopped
+            text = if (state.stopped) "已停止" else "停止执行"
+            setBackgroundColor(
+                context.getColor(
+                    if (state.stopped) android.R.color.darker_gray else android.R.color.holo_red_dark,
+                ),
+            )
+        }
     }
 }
 

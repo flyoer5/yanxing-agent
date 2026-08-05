@@ -184,9 +184,10 @@ fun AgentApp(
                 onToggleStreaming = viewModel::toggleStreaming,
                 onAddAttachment = viewModel::addAttachment,
                 onRemoveAttachment = viewModel::removeAttachment,
-                onVoiceInput = { viewModel.setVoiceInputMode(true) },
+                onVoiceInput = viewModel::startVoiceInput,
                 onToggleSearch = viewModel::toggleSearchEnabled,
                 onConfirmAction = viewModel::confirmCurrentAction,
+                onStopAction = viewModel::stopAction,
                 modifier = Modifier.padding(padding),
             )
             1 -> MemoryScreen(
@@ -259,6 +260,7 @@ private fun ChatScreen(
     onVoiceInput: () -> Unit,
     onToggleSearch: () -> Unit,
     onConfirmAction: (Boolean) -> Unit,
+    onStopAction: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -369,7 +371,7 @@ private fun ChatScreen(
                         is ActionStatus.Thinking -> {
                             item(key = "action-thinking") {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 4.dp),
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
@@ -377,7 +379,9 @@ private fun ChatScreen(
                                     Text(
                                         "AI 正在分析第 ${status.round} 轮执行结果…",
                                         style = MaterialTheme.typography.labelSmall,
+                                        modifier = Modifier.weight(1f),
                                     )
+                                    StopActionButton(onStopAction)
                                 }
                             }
                         }
@@ -388,26 +392,42 @@ private fun ChatScreen(
                                     progress = { progress.coerceIn(0f, 1f) },
                                     modifier = Modifier.fillMaxWidth(),
                                 )
-                                Text(
-                                    text = "正在执行 ${status.current}/${status.total}: ${status.actionDesc ?: ""}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        text = "正在执行 ${status.current}/${status.total}: ${status.actionDesc ?: ""}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                                    )
+                                    StopActionButton(onStopAction)
+                                }
                             }
                         }
                         is ActionStatus.PendingConfirm.Waiting -> {
                             val action = status.actions.getOrNull(status.index)
                             if (action != null) {
                                 item(key = "action-confirm-${status.index}") {
-                                    ConfirmActionCard(action) { approved ->
-                                        onConfirmAction(approved)
+                                    Column {
+                                        ConfirmActionCard(action) { approved ->
+                                            onConfirmAction(approved)
+                                        }
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.End,
+                                        ) {
+                                            StopActionButton(onStopAction)
+                                        }
                                     }
                                 }
                             }
                         }
                         is ActionStatus.PendingConfirm.Canceled -> {
                             item(key = "action-canceled") {
-                                Text("行动已取消", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("行动已停止", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                         is ActionStatus.Completed -> {
@@ -1032,6 +1052,24 @@ private fun ConfirmActionCard(action: AIDecisionEngine.Action, onConfirm: (Boole
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+    }
+}
+
+@Composable
+private fun StopActionButton(onStop: () -> Unit) {
+    androidx.compose.material3.TextButton(
+        onClick = onStop,
+        colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+            contentColor = MaterialTheme.colorScheme.error,
+        ),
+    ) {
+        Icon(
+            Icons.Outlined.Close,
+            contentDescription = "停止执行",
+            modifier = Modifier.size(16.dp),
+        )
+        Spacer(Modifier.width(4.dp))
+        Text("停止", style = MaterialTheme.typography.labelMedium)
     }
 }
 
