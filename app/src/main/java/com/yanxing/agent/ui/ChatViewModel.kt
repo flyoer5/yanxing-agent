@@ -307,7 +307,7 @@ class ChatViewModel @Inject constructor(
     }
 
     private suspend fun extractScreenText(): String {
-        val root = ScreenReaderAccessibilityService.rootInActiveWindow
+        val root = ScreenReaderAccessibilityService.instance?.rootInActiveWindow
             ?: return "无法读取当前界面"
         val pkg = ScreenReaderAccessibilityService.lastScreenPackage
         val text = runCatching {
@@ -384,7 +384,7 @@ class ChatViewModel @Inject constructor(
                 return@launch
             }
             
-            val action = actions[actions[nextIndex - 1]]
+            val action = actions[nextIndex - 1]
             
             val result = when (action) {
                 is AIDecisionEngine.Action.Click -> com.yanxing.agent.service.ActionExecutor.click(action.query)

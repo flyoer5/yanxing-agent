@@ -8,6 +8,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import org.json.JSONArray
 import org.json.JSONObject
+import com.yanxing.agent.service.AIDecisionEngine
 
 @Singleton
 class ChatRepository @Inject constructor(

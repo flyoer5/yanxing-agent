@@ -104,14 +104,6 @@ object AIDecisionEngine {
             is Swipe -> "滑动 ${direction.name}"
             is InputText -> "输入文本 \"${text}\""
         }
-        
-        fun toExecCommand(): com.yanxing.agent.service.ActionExecutor.ActionType = 
-            when (this) {
-                is Click -> com.yanxing.agent.service.ActionExecutor.ActionType.CLICK(query)
-                is LongPress -> com.yanxing.agent.service.ActionExecutor.ActionType.LONG_PRESS(query)
-                is Swipe -> com.yanxing.agent.service.ActionExecutor.ActionType.SWIPE(direction)
-                is InputText -> com.yanxing.agent.service.ActionExecutor.ActionType.INPUT_TEXT(query, text)
-            }
     }
 
     enum class SwipeDirection { UP, DOWN, LEFT, RIGHT }

@@ -1,185 +1,99 @@
 package com.yanxing.agent.service
 
+import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.GestureDescription
+import android.graphics.Path
+import android.os.Bundle
 import android.view.accessibility.AccessibilityNodeInfo
-import java.util.LinkedList
-import com.yanxing.agent.service.AIDecisionEngine.SwipeDirection
+import java.util.ArrayDeque
 
-/**
- * ActionExecutor v2 - 基于无障碍服务的自动化执行引擎
- * 支持：点击/长按/滑动/文本输入 + AI 驱动的决策
- */
+/** 安全的无障碍操作封装。实际服务实例由 ScreenReaderAccessibilityService 持有。 */
 object ActionExecutor {
+    data class ActionResult(
+        val success: Boolean,
+        val message: String,
+        val foundDesc: String? = null,
+    )
 
-    private var service: ScreenReaderAccessibilityService? = null
-
-    /**
-     * 初始化（需在主线程调用）
-     */
-    fun initialize(context: android.content.Context) {
-        // TODO: 通过 AccessibilityManager 获取实例
+    fun extractText(node: AccessibilityNodeInfo?): String {
+        if (node == null) return ""
+        val out = StringBuilder()
+        collectText(node, out, 0)
+        return out.toString().trim()
     }
 
-    /**
-     * 刷新当前窗口 UI 树
-     */
-    fun refreshScreen(): String {
-        service ?: return "未开启无障碍服务"
-        val root = service?.rootInActiveWindow ?: return "无法读取界面"
-        val pkgName = service?.lastScreenPackage ?: "未知"
-        val text = extractText(root).take(800)
-        return "当前界面：$pkgName\n内容:\n$text"
+    fun click(query: String): ActionResult = withService { service ->
+        val node = findNode(service.rootInActiveWindow, query)
+            ?: return@withService ActionResult(false, "未找到元素：$query")
+        val clicked = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        ActionResult(clicked, if (clicked) "已点击：$query" else "点击失败：$query", node.contentDescription?.toString())
     }
 
-    /**
-     * 查找元素并点击
-     */
-    fun click(query: String): ActionResult {
-        service ?: return ActionResult(false, "未开启无障碍服务")
-        val target = findElement(service?.rootInActiveWindow, query)
-            ?: return ActionResult(false, "未找到元素：$query")
-        val success = target.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
-        return ActionResult(success, if (success) "已点击：$query" else "点击失败：$query", target.contentDescription.toString())
+    fun longPress(query: String): ActionResult = withService { service ->
+        val node = findNode(service.rootInActiveWindow, query)
+            ?: return@withService ActionResult(false, "未找到元素：$query")
+        val pressed = node.performAction(AccessibilityNodeInfo.ACTION_LONG_CLICK)
+        ActionResult(pressed, if (pressed) "已长按：$query" else "长按失败：$query")
     }
 
-    /**
-     * 长按元素
-     */
-    fun longPress(query: String): ActionResult {
-        service ?: return ActionResult(false, "未开启无障碍服务")
-        val target = findElement(service?.rootInActiveWindow, query)
-            ?: return ActionResult(false, "未找到元素：$query")
-        val success = target.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_LONG_CLICK)
-        return ActionResult(success, if (success) "已长按：$query" else "长按失败：$query")
-    }
-
-    /**
-     * 滑动页面（方向：UP/DOWN/LEFT/RIGHT）
-     */
-    fun swipe(direction: SwipeDirection, progressRatio: Float = 0.3f): ActionResult {
-        service ?: return ActionResult(false, "未开启无障碍服务")
-        val metrics = service?.displayMetrics ?: return ActionResult(false, "无法获取显示信息")
-        val bounds = android.graphics.Rect(0, 0, metrics.widthPixels, metrics.heightPixels)
-        
-        val (sx, sy, ex, ey) = when (direction) {
-            SwipeDirection.UP -> Pair(bounds.centerX(), bounds.centerY()) to Pair(bounds.centerX(), (bounds.top + bounds.centerY()) * 0.7f)
-            SwipeDirection.DOWN -> Pair(bounds.centerX(), bounds.centerY()) to Pair(bounds.centerX(), (bounds.bottom + bounds.centerY()) * 0.7f)
-            SwipeDirection.LEFT -> Pair(bounds.right.toFloat(), bounds.centerY()) to Pair((bounds.left + bounds.right) * 0.3f, bounds.centerY())
-            SwipeDirection.RIGHT -> Pair((bounds.left + bounds.right) * 0.3f, bounds.centerY()) to Pair(bounds.right.toFloat(), bounds.centerY())
+    fun swipe(direction: AIDecisionEngine.SwipeDirection): ActionResult = withService { service ->
+        val metrics = service.resources.displayMetrics
+        val width = metrics.widthPixels.toFloat()
+        val height = metrics.heightPixels.toFloat()
+        val path = Path()
+        val cx = width / 2f
+        val cy = height / 2f
+        when (direction) {
+            AIDecisionEngine.SwipeDirection.UP -> { path.moveTo(cx, height * .75f); path.lineTo(cx, height * .25f) }
+            AIDecisionEngine.SwipeDirection.DOWN -> { path.moveTo(cx, height * .25f); path.lineTo(cx, height * .75f) }
+            AIDecisionEngine.SwipeDirection.LEFT -> { path.moveTo(width * .75f, cy); path.lineTo(width * .25f, cy) }
+            AIDecisionEngine.SwipeDirection.RIGHT -> { path.moveTo(width * .25f, cy); path.lineTo(width * .75f, cy) }
         }
-        
-        val success = performGesture(sx.toInt(), sy.toInt(), ex.toInt(), ey.toInt())
-        return ActionResult(success, if (success) "已滑动 ${direction.name}" else "滑动失败")
+        val gesture = GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(path, 0L, 350L))
+            .build()
+        val accepted = service.dispatchGesture(gesture, null, null)
+        ActionResult(accepted, if (accepted) "已滑动 ${direction.name}" else "滑动失败")
     }
 
-    /**
-     * 输入文本到指定输入框
-     */
-    fun inputText(query: String, text: String): ActionResult {
-        service ?: return ActionResult(false, "未开启无障碍服务")
-        val target = findElement(service?.rootInActiveWindow, query)
-            ?: return ActionResult(false, "未找到输入框：$query")
-        
-        // 尝试通过焦点+发送按键事件
-        val focusSuccess = target.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_FOCUS)
-        val result = if (focusSuccess) {
-            injectKeyEvents(text)
-            true
-        } else false
-        
-        return ActionResult(result, if (result) "已输入：$text" else "输入失败：无法聚焦输入框")
-    }
-
-    // ===================== 内部工具 =====================
-
-    private fun findElement(node: AccessibilityNodeInfo?, query: String, maxDepth: Int = 50): AccessibilityNodeInfo? {
-        node ?: return null
-        val q = query.lowercase()
-        
-        // 检查当前节点
-        if (node.text?.lowercase()?.contains(q) == true || 
-            node.contentDescription?.lowercase()?.contains(q) == true ||
-            node.className?.contains(q) == true ||
-            (q.contains("button") && (node.isClickable || node.isEnabled)) ||
-            (q.contains("input") && (node.isEditable || node.isEnabled))) {
-            return node
+    fun inputText(query: String, text: String): ActionResult = withService { service ->
+        val node = findNode(service.rootInActiveWindow, query)
+            ?: return@withService ActionResult(false, "未找到输入框：$query")
+        val focused = node.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+        if (!focused) return@withService ActionResult(false, "无法聚焦输入框：$query")
+        val args = Bundle().apply {
+            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
         }
-        
-        // BFS 搜索（避免过深递归）
-        val queue = LinkedList<AccessibilityNodeInfo>()
-        queue.addLast(node)
-        
-        for (depth in 1..maxDepth) {
-            repeat(queue.size) {
-                val cur = queue.pollFirst() ?: return@repeat
-                for (i in 0 until cur.childCount) {
-                    val child = cur.getChild(i) ?: return@repeat
-                    if (child.text?.lowercase()?.contains(q) == true || 
-                        child.contentDescription?.lowercase()?.contains(q) == true) {
-                        return child
-                    }
-                    queue.addLast(child)
-                }
-            }
+        val changed = node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+        ActionResult(changed, if (changed) "已输入文本" else "输入失败")
+    }
+
+    private fun withService(block: (ScreenReaderAccessibilityService) -> ActionResult): ActionResult {
+        val service = ScreenReaderAccessibilityService.instance
+            ?: return ActionResult(false, "无障碍服务未开启")
+        return block(service)
+    }
+
+    private fun findNode(root: AccessibilityNodeInfo?, query: String): AccessibilityNodeInfo? {
+        if (root == null) return null
+        val q = query.trim().lowercase()
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+        while (queue.isNotEmpty()) {
+            val node = queue.removeFirst()
+            val text = node.text?.toString()?.lowercase().orEmpty()
+            val desc = node.contentDescription?.toString()?.lowercase().orEmpty()
+            val id = node.viewIdResourceName?.lowercase().orEmpty()
+            if (text.contains(q) || desc.contains(q) || id.contains(q)) return node
+            for (index in 0 until node.childCount) node.getChild(index)?.let(queue::addLast)
         }
         return null
     }
 
-    private fun performGesture(x1: Int, y1: Int, x2: Int, y2: Int): Boolean {
-        // 使用 AccessibilityGesture.Event API（API 29+）
-        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) {
-            // 降级：简单延迟模拟
-            Thread.sleep(100)
-            return false
-        }
-        
-        try {
-            val gesture = android.view.accessibility.AccessibilityGesture.Event.Builder("swipe")
-                .setGestureStartLocation(x1.toFloat(), y1.toFloat())
-                .addPoint(android.view.MotionEvent.ACTION_MOVE, listOf(floatArrayOf(x2.toFloat(), y2.toFloat())))
-                .build()
-            service?.performGesture(gesture)
-            return true
-        } catch (e: Exception) {
-            // Fallback
-            return false
-        }
-    }
-
-    private fun injectKeyEvents(text: String) {
-        // 简化：通过 UiAutomation 发送按键序列
-        // 实际需要在无障碍服务中持有 UiAutomation 实例
-    }
-
-    fun extractText(node: AccessibilityNodeInfo?): String {
-        if (node == null) return ""
-        val sb = StringBuilder()
-        buildText(node, sb, depth = 0)
-        return sb.toString().trim()
-    }
-
-    private fun buildText(node: AccessibilityNodeInfo, builder: StringBuilder, depth: Int) {
+    private fun collectText(node: AccessibilityNodeInfo, out: StringBuilder, depth: Int) {
         if (depth > 30) return
-        node.text?.toString()?.takeIf { it.isNotBlank() }?.let { builder.append(it).append("\n") }
-        node.contentDescription?.toString()?.takeIf { it.isNotBlank() }?.let { builder.append("【描述】").append(it).append("\n") }
-        for (i in 0 until node.childCount) {
-            node.getChild(i)?.let { buildText(it, builder, depth + 1) }
-        }
-    }
-
-    data class ActionResult(val success: Boolean, val message: String, val foundDesc: String? = null) {
-        companion object {
-            fun Success(msg: String, foundDesc: String? = null) = ActionResult(true, msg, foundDesc)
-            fun Error(msg: String) = ActionResult(false, msg)
-        }
-    }
-
-
-    }
-
-    sealed class ActionType {
-        data class CLICK(val query: String) : ActionType()
-        data class LONG_PRESS(val query: String) : ActionType()
-        data class SWIPE(val direction: SwipeDirection) : ActionType()
-        data class INPUT_TEXT(val query: String, val text: String) : ActionType()
+        node.text?.toString()?.takeIf(String::isNotBlank)?.let { out.append(it).append('\n') }
+        node.contentDescription?.toString()?.takeIf(String::isNotBlank)?.let { out.append("【描述】").append(it).append('\n') }
+        for (index in 0 until node.childCount) node.getChild(index)?.let { collectText(it, out, depth + 1) }
     }
 }

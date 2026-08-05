@@ -181,6 +181,7 @@ fun AgentApp(
                 onRemoveAttachment = viewModel::removeAttachment,
                 onVoiceInput = { viewModel.setVoiceInputMode(true) },
                 onToggleSearch = viewModel::toggleSearchEnabled,
+                onConfirmAction = viewModel::confirmCurrentAction,
                 modifier = Modifier.padding(padding),
             )
             1 -> MemoryScreen(
@@ -214,6 +215,8 @@ fun AgentApp(
             onSearchApiKeyChanged = viewModel::updateSearchApiKey,
             onToggleSearch = viewModel::toggleSearchEnabled,
             onToggleFloatingWindow = viewModel::toggleFloatingWindow,
+            onToggleActionMode = viewModel::toggleActionMode,
+            onStartActionMode = viewModel::startActionMode,
             onSave = { viewModel.saveSettings(); showSettings = false },
             onDismiss = { showSettings = false },
         )
@@ -245,6 +248,7 @@ private fun ChatScreen(
     onRemoveAttachment: (Int) -> Unit,
     onVoiceInput: () -> Unit,
     onToggleSearch: () -> Unit,
+    onConfirmAction: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -354,8 +358,9 @@ private fun ChatScreen(
                         }
                         is ActionStatus.Executing -> {
                             item(key = "action-executing") {
+                                val progress = if (status.total == 0) 0f else status.current.toFloat() / status.total
                                 LinearProgressIndicator(
-                                    progress = (status.current.toFloat() / status.total.toFloat()),
+                                    progress = { progress.coerceIn(0f, 1f) },
                                     modifier = Modifier.fillMaxWidth(),
                                 )
                                 Text(
@@ -363,6 +368,21 @@ private fun ChatScreen(
                                     style = MaterialTheme.typography.labelSmall,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                 )
+                            }
+                        }
+                        is ActionStatus.PendingConfirm.Waiting -> {
+                            val action = status.actions.getOrNull(status.index)
+                            if (action != null) {
+                                item(key = "action-confirm-${status.index}") {
+                                    ConfirmActionCard(action) { approved ->
+                                        onConfirmAction(approved)
+                                    }
+                                }
+                            }
+                        }
+                        is ActionStatus.PendingConfirm.Canceled -> {
+                            item(key = "action-canceled") {
+                                Text("行动已取消", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                         is ActionStatus.Completed -> {
@@ -744,6 +764,14 @@ private fun ActionModeFields(
                 Text("正在执行：${status.current}/${status.total} (${status.actionDesc ?: ""})", style = MaterialTheme.typography.labelSmall)
             }
         }
+        is ActionStatus.PendingConfirm.Waiting -> {
+            Spacer(Modifier.height(8.dp))
+            Text("等待确认第 ${status.index + 1}/${status.actions.size} 个操作", style = MaterialTheme.typography.labelSmall)
+        }
+        is ActionStatus.PendingConfirm.Canceled -> {
+            Spacer(Modifier.height(8.dp))
+            Text("行动已取消", style = MaterialTheme.typography.labelSmall)
+        }
         is ActionStatus.Completed -> {
             Spacer(Modifier.height(8.dp))
             val successText = "${status.successCount}/${status.totalCount} 成功"
@@ -880,6 +908,8 @@ private fun SettingsDialog(
     onSearchApiKeyChanged: (String) -> Unit,
     onToggleSearch: () -> Unit,
     onToggleFloatingWindow: () -> Unit,
+    onToggleActionMode: () -> Unit,
+    onStartActionMode: () -> Unit,
     onSave: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -891,6 +921,7 @@ private fun SettingsDialog(
                 ModelFields(state, onBaseUrlChanged, onApiKeyChanged, onModelChanged)
                 SearchFields(state, onSearchApiKeyChanged, onToggleSearch)
                 SystemFeaturesFields(state, onToggleFloatingWindow)
+                ActionModeFields(state, onToggleActionMode, onStartActionMode)
             }
         },
         confirmButton = { Button(onClick = onSave) { Text("保存") } },
