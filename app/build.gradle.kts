@@ -11,6 +11,21 @@ android {
     namespace = "com.yanxing.agent"
     compileSdk = 35
 
+    signingConfigs {
+        // 固定签名：CI 通过环境变量注入 keystore 路径与密码；本地无环境变量时跳过（使用默认 debug 签名）
+        create("fixed") {
+            val keystoreEnv = providers.environmentVariable("YANXING_KEYSTORE_FILE")
+            val passwordEnv = providers.environmentVariable("YANXING_KEYSTORE_PASSWORD")
+            if (keystoreEnv.isPresent && passwordEnv.isPresent && file(keystoreEnv.get()).exists()) {
+                storeFile = file(keystoreEnv.get())
+                storePassword = passwordEnv.get()
+                keyAlias = providers.environmentVariable("YANXING_KEY_ALIAS").orElse("yanxing").get()
+                keyPassword = providers.environmentVariable("YANXING_KEY_PASSWORD").orElse(passwordEnv.get()).get()
+                storeType = "PKCS12"
+            }
+        }
+    }
+
     defaultConfig {
         applicationId = "com.yanxing.agent"
         minSdk = 24
@@ -23,12 +38,22 @@ android {
     }
 
     buildTypes {
+        debug {
+            val fixed = signingConfigs.findByName("fixed")
+            if (fixed?.storeFile != null) {
+                signingConfig = fixed
+            }
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            val fixed = signingConfigs.findByName("fixed")
+            if (fixed?.storeFile != null) {
+                signingConfig = fixed
+            }
         }
     }
 
