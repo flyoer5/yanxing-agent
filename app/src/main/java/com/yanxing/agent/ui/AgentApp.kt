@@ -35,7 +35,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.Chat
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outdated.Refresh
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.Mic

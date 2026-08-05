@@ -3,6 +3,7 @@ package com.yanxing.agent.service
 import android.content.Context
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
+import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.widget.TextView
