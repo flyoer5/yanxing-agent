@@ -11,14 +11,29 @@ object AIDecisionEngine {
         constraints: List<String> = DEFAULT_CONSTRAINTS,
     ): ChatMessageDto {
         val content = buildString {
-            appendLine("你是言行 Agent 的替我行动模式，负责根据当前屏幕和用户请求规划无障碍操作。")
-            appendLine("只返回 JSON，不要返回 Markdown。格式：{\"actions\":[{\"action\":\"click|long_press|swipe|input_text\",\"query\":\"元素文本\",\"direction\":\"UP|DOWN|LEFT|RIGHT\",\"text\":\"输入内容\"}]}")
-            appendLine("当前屏幕：")
+            appendLine("""你是言行 Agent 的替我行动模式，负责根据当前屏幕和用户请求规划无障碍操作。
+【核心目标】
+1. 只返回 JSON，不要 Markdown
+2. 生成的 query 必须是屏幕上确实存在的文本或描述
+3. 对于模糊描述，尝试找出最接近的唯一元素""")
+            
+            appendLine("\n输出格式示例:")
+            appendLine("""{"actions":[{"action":"click","query":"确切的按钮文本"},{"action":"swipe","direction":"DOWN"}]}""")
+            
+            appendLine("\n当前屏幕内容:")
             appendLine(currentScreen.take(4000))
-            lastAction?.let { appendLine("上一步操作：$it") }
-            appendLine("约束：")
+            
+            lastAction?.let { appendLine("\n上一步操作：$it") }
+            
+            appendLine("\n约束规则:")
             constraints.forEachIndexed { index, rule -> appendLine("${index + 1}. $rule") }
+            
+            appendLine("\n重要提示:")
+            appendLine("✓ 优先使用屏幕上实际显示的文本")
+            appendLine("✓ 如果找不到完全匹配的，使用部分匹配或语义相似的描述")
+            appendLine("✗ 不要凭空想象不存在的元素")
         }
+        
         return ChatMessageDto(role = "system", content = content)
     }
 
