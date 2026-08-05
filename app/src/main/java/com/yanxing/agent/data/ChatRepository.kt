@@ -9,6 +9,7 @@ import javax.inject.Singleton
 import org.json.JSONArray
 import org.json.JSONObject
 import com.yanxing.agent.service.AIDecisionEngine
+import com.yanxing.agent.data.ActionStatus
 
 @Singleton
 class ChatRepository @Inject constructor(
@@ -16,6 +17,7 @@ class ChatRepository @Inject constructor(
     private val conversationDao: ConversationDao,
     private val messageDao: MessageDao,
     private val memoryDao: MemoryDao,
+    private val actionLogDao: ActionLogDao,
 ) {
     fun observeConversations(): Flow<List<Conversation>> =
         conversationDao.observeAll().map { list -> list.map(ConversationEntity::toDomain) }
@@ -91,6 +93,43 @@ class ChatRepository @Inject constructor(
     suspend fun deleteMemory(id: String) = memoryDao.delete(id)
 
     suspend fun deleteAllMemories() = memoryDao.deleteAll()
+
+    // ===== 操作日志管理 =====
+    
+    fun observeActionLogs(): Flow<List<ActionLogEntity>> =
+        actionLogDao.observeAll().map { list -> list.sortedByDescending { it.timestamp } }
+
+    fun observeActionLogsByPackage(packageName: String): Flow<List<ActionLogEntity>> =
+        actionLogDao.observeForPackage(packageName)
+
+    suspend fun addActionLog(
+        packageName: String,
+        actionType: String,
+        targetElement: String?,
+        details: String,
+        status: ActionStatus,
+        errorMessage: String? = null,
+    ) {
+        val log = ActionLogEntity(
+            id = UUID.randomUUID().toString(),
+            timestamp = System.currentTimeMillis(),
+            packageName = packageName,
+            actionType = actionType,
+            targetElement = targetElement?.take(200),
+            details = details.take(1000),
+            status = when (status) {
+                is ActionStatus.Completed -> if (status.successCount == status.totalCount) "success" else "failed"
+                is ActionStatus.Executing -> "running"
+                else -> "unknown"
+            },
+            errorMessage = errorMessage,
+        )
+        actionLogDao.insert(log)
+    }
+
+    suspend fun deleteActionLog(id: String) = actionLogDao.delete(id)
+    suspend fun deleteAllActionLogs() = actionLogDao.deleteAll()
+    suspend fun deleteActionLogsByPackage(packageName: String) = actionLogDao.deleteByPackage(packageName)
 
     suspend fun messagesForRequest(conversationId: String): List<ChatMessage> =
         messageDao.findForConversation(conversationId).map(MessageEntity::toDomain)

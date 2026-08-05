@@ -163,6 +163,12 @@ fun AgentApp(
                 NavigationBarItem(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
+                    icon = { Icon(Icons.Outlined.Public, contentDescription = null) },
+                    label = { Text("日志") },
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 },
                     icon = { Icon(Icons.Outlined.Settings, contentDescription = null) },
                     label = { Text("设置") },
                 )
@@ -186,6 +192,11 @@ fun AgentApp(
                 memories = state.memories,
                 onDelete = viewModel::deleteMemory,
                 onClearAll = viewModel::clearAllMemories,
+                modifier = Modifier.padding(padding),
+            )
+            2 -> ActionLogScreen(
+                logs = state.actionLogs,
+                onClearAll = viewModel::clearAllActionLogs,
                 modifier = Modifier.padding(padding),
             )
             else -> SettingsScreen(
@@ -1001,7 +1012,9 @@ private fun ConfirmActionCard(action: AIDecisionEngine.Action, onConfirm: (Boole
 }
 
 private fun tabTitle(index: Int) = when (index) {
+    0 -> "聊天"
     1 -> "记忆"
+    2 -> "日志"
     else -> "设置"
 }
 
@@ -1108,6 +1121,146 @@ private fun MemoryScreen(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActionLogScreen(
+    logs: List<ActionLogEntity>,
+    onClearAll: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("操作日志", style = MaterialTheme.typography.headlineSmall)
+                Text("记录"替我行动”的操作历史", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            TextButton(onClick = onClearAll, enabled = logs.isNotEmpty()) { Text("清空") }
+        }
+        Spacer(Modifier.height(12.dp))
+        
+        if (logs.isEmpty()) {
+            PlaceholderScreen("暂无操作日志", Modifier.fillMaxWidth().weight(1f))
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(logs, key = { it.id }) { log ->
+                    ActionLogItem(log)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActionLogItem(log: ActionLogEntity) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(
+                    text = log.packageName.takeLastWhile { it != '.' }, // 只显示应用名
+                    style = MaterialTheme.typography.titleMedium,
+                    color = when (log.status) {
+                        "success" -> MaterialTheme.colorScheme.secondary
+                        "failed" -> MaterialTheme.colorScheme.error
+                        "running" -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.onSurface
+                    },
+                )
+                Text(
+                    text = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+                        .format(java.util.Date(log.timestamp)),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            
+            Spacer(Modifier.height(4.dp))
+            
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(
+                    modifier = Modifier.padding(horizontal = 6.dp).clip(RoundedCornerShape(4.dp))
+                        .background(when (log.actionType) {
+                            "click" -> MaterialTheme.colorScheme.primaryContainer
+                            "swipe" -> MaterialTheme.colorScheme.secondaryContainer
+                            "input_text" -> MaterialTheme.colorScheme.tertiaryContainer
+                            "input_key" -> MaterialTheme.colorScheme.primaryContainer
+                            else -> MaterialTheme.colorScheme.surfaceVariant
+                        }),
+                ) {
+                    Text(
+                        text = when (log.actionType) {
+                            "click" -> "点击"
+                            "swipe" -> "滑动"
+                            "input_text" -> "输入文本"
+                            "input_key" -> "按键"
+                            else -> "操作"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = when (log.actionType) {
+                            "click" -> MaterialTheme.colorScheme.onPrimaryContainer
+                            "swipe" -> MaterialTheme.colorScheme.onSecondaryContainer
+                            "input_text" -> MaterialTheme.colorScheme.onTertiaryContainer
+                            "input_key" -> MaterialTheme.colorScheme.onPrimaryContainer
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    )
+                }
+                
+                Box(
+                    modifier = Modifier.padding(horizontal = 6.dp).clip(RoundedCornerShape(4.dp))
+                        .background(when (log.status) {
+                            "success" -> MaterialTheme.colorScheme.successContainer
+                            "failed" -> MaterialTheme.colorScheme.errorContainer
+                            "running" -> MaterialTheme.colorScheme.primaryContainer
+                            else -> MaterialTheme.colorScheme.surfaceVariant
+                        }),
+                ) {
+                    Text(
+                        text = when (log.status) {
+                            "success" -> "✓ 成功"
+                            "failed" -> "✗ 失败"
+                            "running" -> "⏳ 执行中"
+                            else -> "未知"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = when (log.status) {
+                            "success" -> MaterialTheme.colorScheme.onSuccessContainer
+                            "failed" -> MaterialTheme.colorScheme.onErrorContainer
+                            "running" -> MaterialTheme.colorScheme.onPrimaryContainer
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    )
+                }
+            }
+            
+            if (log.targetElement != null && log.targetElement.isNotBlank()) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "目标：${log.targetElement}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            
+            if (log.details.isNotBlank() && log.details != log.targetElement) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "详情：${log.details}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            
+            if (log.errorMessage != null && log.errorMessage!!.isNotBlank()) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "错误：${log.errorMessage}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
         }
     }

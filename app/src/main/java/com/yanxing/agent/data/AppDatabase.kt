@@ -125,9 +125,33 @@ interface MemoryDao {
     suspend fun deleteAll()
 }
 
+@Dao
+interface ActionLogDao {
+    @Query("SELECT * FROM action_logs ORDER BY timestamp DESC")
+    fun observeAll(): Flow<List<ActionLogEntity>>
+
+    @Query("SELECT * FROM action_logs WHERE packageName = :packageName ORDER BY timestamp DESC")
+    fun observeForPackage(packageName: String): Flow<List<ActionLogEntity>>
+
+    @Query("SELECT * FROM action_logs WHERE id = :id LIMIT 1")
+    suspend fun findById(id: String): ActionLogEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(log: ActionLogEntity)
+
+    @Query("DELETE FROM action_logs WHERE id = :id")
+    suspend fun delete(id: String)
+
+    @Query("DELETE FROM action_logs")
+    suspend fun deleteAll()
+
+    @Query("DELETE FROM action_logs WHERE packageName = :packageName")
+    suspend fun deleteByPackage(packageName: String)
+}
+
 @Database(
-    entities = [GroupEntity::class, ConversationEntity::class, MessageEntity::class, MemoryEntity::class],
-    version = 2,
+    entities = [GroupEntity::class, ConversationEntity::class, MessageEntity::class, MemoryEntity::class, ActionLogEntity::class],
+    version = 3,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -135,4 +159,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun conversationDao(): ConversationDao
     abstract fun messageDao(): MessageDao
     abstract fun memoryDao(): MemoryDao
+    abstract fun actionLogDao(): ActionLogDao
 }

@@ -70,6 +70,9 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             repository.observeMemories().collect { memories -> _uiState.update { it.copy(memories = memories) } }
         }
+        viewModelScope.launch {
+            repository.observeActionLogs().collect { logs -> _uiState.update { it.copy(actionLogs = logs) } }
+        }
         loadSettings()
     }
 
@@ -156,6 +159,14 @@ class ChatViewModel @Inject constructor(
 
     fun clearAllMemories() {
         viewModelScope.launch { repository.deleteAllMemories() }
+    }
+
+    fun clearAllActionLogs() {
+        viewModelScope.launch { repository.deleteAllActionLogs() }
+    }
+
+    fun clearActionLogsForPackage(packageName: String) {
+        viewModelScope.launch { repository.deleteActionLogsByPackage(packageName) }
     }
 
     fun dismissMemoryNotice() = _uiState.update { it.copy(memoryNotice = null) }
@@ -394,6 +405,28 @@ class ChatViewModel @Inject constructor(
                 is AIDecisionEngine.Action.InputText -> com.yanxing.agent.service.ActionExecutor.inputText(action.query, action.text)
             }
             
+            // 记录操作日志
+            viewModelScope.launch {
+                val packageName = uiState.value.lastScreenPackage.orEmpty()
+                repository.addActionLog(
+                    packageName = packageName,
+                    actionType = when (action) {
+                        is AIDecisionEngine.Action.Click -> "click"
+                        is AIDecisionEngine.Action.LongPress -> "click" // long_press also uses click action type for logging
+                        is AIDecisionEngine.Action.Swipe -> "swipe"
+                        is AIDecisionEngine.Action.InputText -> "input_text"
+                    },
+                    targetElement = if (action !is AIDecisionEngine.Action.Swipe) action.query else null,
+                    details = when (action) {
+                        is AIDecisionEngine.Action.Click, is AIDecisionEngine.Action.LongPress, 
+                        is AIDecisionEngine.Action.Swipe -> result.message
+                        is AIDecisionEngine.Action.InputText -> action.text
+                    }.orEmpty(),
+                    status = if (result.success) ActionStatus.Completed(1, 1) else ActionStatus.Idle,
+                    errorMessage = if (!result.success) result.message else null,
+                )
+            }
+            
             if (result.success && nextIndex < actions.size) {
                 // 继续下一个动作
                 _uiState.update { 
@@ -550,4 +583,5 @@ data class ChatUiState(
     val inProgressReply: String = "",
     val error: String? = null,
     val settingsSaved: Boolean = false,
+    val actionLogs: List<ActionLogEntity> = emptyList(), // 操作日志列表
 )
