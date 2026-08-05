@@ -172,7 +172,7 @@ object ActionExecutor {
     }
 
     // ===== 与服务的交互 =====
-    private suspend fun withService(block: (ScreenReaderAccessibilityService) -> ActionResult): ActionResult {
+    private suspend fun withService(block: suspend (ScreenReaderAccessibilityService) -> ActionResult): ActionResult {
         val service = ScreenReaderAccessibilityService.instance
             ?: return ActionResult(false, "无障碍服务未开启")
         return block(service)
