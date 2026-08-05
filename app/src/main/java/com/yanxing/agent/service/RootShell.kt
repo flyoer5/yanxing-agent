@@ -99,12 +99,45 @@ object RootShell {
         cachedRootAvailable = null
     }
 
+    // ===== 系统控制命令 =====
+
+    /** 读取电池百分比（0-100），失败返回 null */
+    fun batteryLevel(): Int? = runCatching {
+        val output = execute(Commands.BATTERY_LEVEL) ?: return null
+        output.trim().toIntOrNull()
+    }.getOrNull()
+
+    /** 读取当前屏幕亮度（0-255），失败返回 null */
+    fun screenBrightness(): Int? = runCatching {
+        val output = execute(Commands.GET_SCREEN_BRIGHTNESS) ?: return null
+        output.trim().toIntOrNull()
+    }.getOrNull()
+
+    /** 设置屏幕亮度（0-255），成功返回 true */
+    fun setScreenBrightness(value: Int): Boolean {
+        if (value !in 0..255) return false
+        val output = execute("settings put system screen_brightness ${value.coerceIn(0, 255)}")
+        // settings put 无输出即成功
+        return output != null
+    }
+
+    /** 点亮屏幕 */
+    fun wakeScreen(): Boolean = execute(Commands.SCREEN_ON) != null
+
+    /** 打开系统最近任务页 */
+    fun showRecents(): Boolean = execute(Commands.SHOW_RECENTS) != null
+
+    /** 获取设备信息（型号 + 系统版本） */
+    fun deviceInfo(): String? = execute(Commands.GET_DEVICE_INFO)
+
     /** 常见增强命令示例 */
     object Commands {
         const val GET_DEVICE_INFO = "getprop ro.product.model && getprop ro.build.version.release"
         const val BATTERY_LEVEL = "cat /sys/class/power_supply/battery/capacity"
+        const val GET_SCREEN_BRIGHTNESS = "settings get system screen_brightness"
         const val CLEAR_RECENTS = "cmd activity recents clear-all"
         const val SCREEN_ON = "input keyevent KEYCODE_WAKEUP"
-        const val SET_SCREEN_BRIGHTNESS = "settings put system screen_brightness 255"
+        const val SHOW_RECENTS = "cmd activity recents"
+        const val SET_SCREEN_BRIGHTNESS = "settings put system screen_brightness"
     }
 }
