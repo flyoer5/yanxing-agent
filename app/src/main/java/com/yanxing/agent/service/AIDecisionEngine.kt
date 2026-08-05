@@ -87,7 +87,7 @@ object AIDecisionEngine {
                 item.contains("long_press") -> "long_press"
                 item.contains("swipe") -> "swipe"
                 item.contains("input_text") -> "input_text"
-                item.contains("back\|return") -> "back"
+                item.contains("back") || item.contains("return") -> "back"
                 item.contains("clear_text") -> "clear_text"
                 else -> ""
             }
