@@ -30,4 +30,7 @@ object DataModule {
 
     @Provides
     fun provideMemoryDao(database: AppDatabase): MemoryDao = database.memoryDao()
+
+    @Provides
+    fun provideActionLogDao(database: AppDatabase): ActionLogDao = database.actionLogDao()
 }
