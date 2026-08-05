@@ -87,6 +87,8 @@ object AIDecisionEngine {
                 item.contains("long_press") -> "long_press"
                 item.contains("swipe") -> "swipe"
                 item.contains("input_text") -> "input_text"
+                item.contains("back\|return") -> "back"
+                item.contains("clear_text") -> "clear_text"
                 else -> ""
             }
         }
@@ -103,6 +105,8 @@ object AIDecisionEngine {
                 extractString(item, "query"),
                 extractString(item, "text"),
             )
+            "back" -> Action.Back
+            "clear_text" -> Action.ClearText(extractString(item, "query"))
             else -> null
         }
     }
@@ -130,12 +134,16 @@ object AIDecisionEngine {
         data class LongPress(val query: String) : Action()
         data class Swipe(val direction: SwipeDirection) : Action()
         data class InputText(val query: String, val text: String) : Action()
+        object Back : Action()                // 全局返回（回滚专用）
+        data class ClearText(val query: String) : Action()  // 清空输入框（回滚专用）
 
         fun toDesc(): String = when (this) {
             is Click -> "点击 [$query]"
             is LongPress -> "长按 [$query]"
             is Swipe -> "滑动 ${direction.name}"
             is InputText -> "输入文本 \"$text\""
+            is Back -> "执行返回"
+            is ClearText -> "清空 \"${query}\""
         }
     }
 

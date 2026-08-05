@@ -4,7 +4,10 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.graphics.Path
 import android.os.Bundle
+import android.provider.Settings
+import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
+import kotlinx.coroutines.delay
 import java.util.ArrayDeque
 
 /** 安全的无障碍操作封装 - 增强版：智能搜索 + 自动重试 */
@@ -33,7 +36,7 @@ object ActionExecutor {
     }
 
     // ===== 点击操作（带重试）=====
-    fun click(query: String): ActionResult = withRetrySupport {
+    suspend fun click(query: String): ActionResult = withRetrySupport {
         withService { service ->
             val node = findSmartNode(service.rootInActiveWindow, query)
                 ?: return@withService ActionResult(false, "未找到元素：$query")
@@ -49,7 +52,7 @@ object ActionExecutor {
     }
 
     // ===== 长按操作（带重试）=====
-    fun longPress(query: String): ActionResult = withRetrySupport {
+    suspend fun longPress(query: String): ActionResult = withRetrySupport {
         withService { service ->
             val node = findSmartNode(service.rootInActiveWindow, query)
                 ?: return@withService ActionResult(false, "未找到元素：$query")
@@ -85,8 +88,37 @@ object ActionExecutor {
         ActionResult(accepted, if (accepted) "已滑动 ${direction.name}" else "滑动失败")
     }
 
+    // ===== 全局返回（撤销当前页面）=====
+    suspend fun back(): ActionResult = withService { service ->
+        // performGlobalAction 是无障碍服务的内置能力，无需额外权限
+        // GLOBAL_ACTION_BACK 会触发系统级返回动作（适用于多数应用）
+        val result = service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+        ActionResult(result, if (result) "已执行返回" else "返回操作不可用")
+    }
+
+    // ===== 清空输入框文本 =====
+    suspend fun clearText(query: String): ActionResult = withRetrySupport {
+        withService { service ->
+            val node = findSmartNode(service.rootInActiveWindow, query)
+                ?: return@withService ActionResult(false, "未找到输入框：$query")
+
+            val focused = node.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+            if (!focused) return@withService ActionResult(false, "无法聚焦输入框：$query")
+
+            val changed = node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, Bundle().apply {
+                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "")
+            })
+            ActionResult(
+                changed,
+                if (changed) "已清空输入框：${node.text ?: query}" else "清空失败：$query",
+                null,
+                0,
+            )
+        }
+    }
+
     // ===== 文本输入（带重试）=====
-    fun inputText(query: String, text: String): ActionResult = withRetrySupport {
+    suspend fun inputText(query: String, text: String): ActionResult = withRetrySupport {
         withService { service ->
             val node = findSmartNode(service.rootInActiveWindow, query)
                 ?: return@withService ActionResult(false, "未找到输入框：$query")
@@ -107,14 +139,14 @@ object ActionExecutor {
         }
     }
 
-    // ===== 重试包装器 =====
-    private fun withRetrySupport(operation: () -> ActionResult): ActionResult {
+    // ===== 重试包装器（协程版，响应取消）=====
+    suspend fun withRetrySupport(operation: suspend () -> ActionResult): ActionResult {
         var lastResult = operation()
         var attempt = 1
         
         while (!lastResult.success && attempt < MAX_RETRY_COUNT) {
             attempt++
-            Thread.sleep(RETRY_DELAY_MS) // 等待界面稳定
+            delay(RETRY_DELAY_MS) // 等待界面稳定，可被取消
             
             // 每次重试重新查找元素（可能之前的节点已失效）
             lastResult = operation()
@@ -127,20 +159,20 @@ object ActionExecutor {
     }
 
     // ===== 安全点击（带延迟保护）=====
-    private fun performSafeClick(node: AccessibilityNodeInfo): Boolean {
-        // 轻微延迟，确保 UI 状态稳定
-        Thread.sleep(50)
+    private suspend fun performSafeClick(node: AccessibilityNodeInfo): Boolean {
+        // 轻微延迟，确保 UI 状态稳定（可被取消）
+        delay(50)
         return node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
     }
 
     // ===== 安全长按（带延迟保护）=====
-    private fun performSafeLongPress(node: AccessibilityNodeInfo): Boolean {
-        Thread.sleep(50)
+    private suspend fun performSafeLongPress(node: AccessibilityNodeInfo): Boolean {
+        delay(50)
         return node.performAction(AccessibilityNodeInfo.ACTION_LONG_CLICK)
     }
 
     // ===== 与服务的交互 =====
-    private fun withService(block: (ScreenReaderAccessibilityService) -> ActionResult): ActionResult {
+    private suspend fun withService(block: (ScreenReaderAccessibilityService) -> ActionResult): ActionResult {
         val service = ScreenReaderAccessibilityService.instance
             ?: return ActionResult(false, "无障碍服务未开启")
         return block(service)
