@@ -1,7 +1,7 @@
-# 言行 Agent 第九阶段开发计划
+# 言行 Agent 第十阶段开发计划
 
 ## 目标
-实现系统级增强：悬浮窗快捷入口、无障碍服务读取屏幕内容、Root 权限增强操作。
+实现系统级增强：悬浮窗快捷入口、无障碍服务读取屏幕内容、Root 权限增强操作，并在此基础上实现 AI 替我行动（自动操作）与操作日志。
 
 ## 阶段
 - [complete] 1. 项目骨架与 CI
@@ -12,15 +12,22 @@
 - [complete] 6. 多会话、分组与长期记忆
 - [complete] 7. 语音、图片/文件输入输出
 - [complete] 8. 联网搜索
-- [in_progress] 9. 悬浮窗、无障碍与 Root 增强
+- [complete] 8. 联网搜索
+- [complete] 9. 悬浮窗、无障碍与 Root 增强
+- [complete] 10. 替我行动（AI 决策 + 自动操作 + 操作日志）
 
 ## 本阶段验收标准
-- [ ] 设置页可开启"悬浮窗模式"
-- [ ] 悬浮球可拖动、点击展开快捷面板
-- [ ] 悬浮窗可快速发起对话/语音输入
-- [ ] 无障碍服务可读取当前屏幕文字
-- [ ] Root 检测与增强命令执行
-- [ ] GitHub Actions 编译、测试成功
+- [x] 设置页可开启"悬浮窗模式"
+- [x] 悬浮球可拖动、点击展开快捷面板
+- [x] 悬浮窗可快速发起对话/语音输入
+- [x] 无障碍服务可读取当前屏幕文字
+- [x] Root 检测与增强命令执行
+- [x] 替我行动：AI 规划 + 智能元素识别 + 自动重试 + 逐动作确认
+- [x] 操作日志：记录、查看、按应用过滤、清空
+- [x] 执行进度悬浮窗：成功/失败计数、暂停继续、拖拽
+- [x] 日志批量异步写入，性能优化
+- [x] GitHub Actions 编译、测试成功
+- [x] 真机安装验证通过
 
 ## 技术方案
 
@@ -44,4 +51,11 @@
 ## 错误记录
 | 错误 | 尝试 | 处理 |
 |---|---:|---|
-| - | - | - |
+| kapt correctErrorTypes 编译报错 | 临时注释该配置 | 保留注释，功能正常 |
+| FloatingProgressOverlay 注释未闭合 + 未声明的 CardView 依赖 | 修正注释、改用 LinearLayout+GradientDrawable 绘制卡片 | 已修复 |
+| R.color.primary / R.id 引用不存在 | 改为直接引用视图对象 | 已修复 |
+| Material3 无 successContainer | 改用 secondaryContainer | 已修复 |
+| ConcurrentLinkedQueue 无 addFirst | 改为 add() | 已修复 |
+| ActionExecutor 丢失根节点参数、回调参数不匹配 | 补 rootInActiveWindow 参数、修正回调 | 已修复 |
+| 缺失 Attachment / ActionLogEntity 导入 | 补齐导入 | 已修复 |
+| Hilt 缺少 ActionLogDao 提供方法 | DataModule 补 provideActionLogDao | 已修复 |
