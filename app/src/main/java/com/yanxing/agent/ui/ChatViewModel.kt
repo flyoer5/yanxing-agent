@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.yanxing.agent.data.ActionLogEntity
 import com.yanxing.agent.data.ActionStatus
+import com.yanxing.agent.data.Attachment
 import com.yanxing.agent.data.ChatMessage
 import com.yanxing.agent.data.ChatRepository
 import com.yanxing.agent.data.Conversation
