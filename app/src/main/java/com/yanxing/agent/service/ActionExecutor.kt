@@ -34,30 +34,34 @@ object ActionExecutor {
 
     // ===== 点击操作（带重试）=====
     fun click(query: String): ActionResult = withRetrySupport {
-        val node = findSmartNode(query)
-            ?: return@withRetrySupport ActionResult(false, "未找到元素：$query", null)
-        
-        val clicked = performSafeClick(node)
-        ActionResult(
-            clicked, 
-            if (clicked) "已点击：${node.text ?: node.contentDescription ?: query}" else "点击失败：$query",
-            node.contentDescription?.toString(),
-            0
-        )
+        withService { service ->
+            val node = findSmartNode(service.rootInActiveWindow, query)
+                ?: return@withService ActionResult(false, "未找到元素：$query")
+
+            val clicked = performSafeClick(node)
+            ActionResult(
+                clicked,
+                if (clicked) "已点击：${node.text ?: node.contentDescription ?: query}" else "点击失败：$query",
+                node.contentDescription?.toString(),
+                0,
+            )
+        }
     }
 
     // ===== 长按操作（带重试）=====
     fun longPress(query: String): ActionResult = withRetrySupport {
-        val node = findSmartNode(query)
-            ?: return@withRetrySupport ActionResult(false, "未找到元素：$query")
-        
-        val pressed = performSafeLongPress(node)
-        ActionResult(
-            pressed,
-            if (pressed) "已长按：$query" else "长按失败：$query",
-            null,
-            0
-        )
+        withService { service ->
+            val node = findSmartNode(service.rootInActiveWindow, query)
+                ?: return@withService ActionResult(false, "未找到元素：$query")
+
+            val pressed = performSafeLongPress(node)
+            ActionResult(
+                pressed,
+                if (pressed) "已长按：$query" else "长按失败：$query",
+                null,
+                0,
+            )
+        }
     }
 
     // ===== 滑动操作（单次执行，不重试）=====
@@ -83,26 +87,28 @@ object ActionExecutor {
 
     // ===== 文本输入（带重试）=====
     fun inputText(query: String, text: String): ActionResult = withRetrySupport {
-        val node = findSmartNode(query)
-            ?: return@withRetrySupport ActionResult(false, "未找到输入框：$query")
-        
-        val focused = node.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
-        if (!focused) return@withRetrySupport ActionResult(false, "无法聚焦输入框：$query")
-        
-        val args = Bundle().apply {
-            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+        withService { service ->
+            val node = findSmartNode(service.rootInActiveWindow, query)
+                ?: return@withService ActionResult(false, "未找到输入框：$query")
+
+            val focused = node.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+            if (!focused) return@withService ActionResult(false, "无法聚焦输入框：$query")
+
+            val args = Bundle().apply {
+                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+            }
+            val changed = node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+            ActionResult(
+                changed,
+                if (changed) "已输入文本到：${node.text ?: query}" else "输入失败：$query",
+                null,
+                0,
+            )
         }
-        val changed = node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
-        ActionResult(
-            changed,
-            if (changed) "已输入文本到：${node.text ?: query}" else "输入失败：$query",
-            null,
-            0
-        )
     }
 
     // ===== 重试包装器 =====
-    private fun <T> withRetrySupport(operation: () -> ActionResult): ActionResult {
+    private fun withRetrySupport(operation: () -> ActionResult): ActionResult {
         var lastResult = operation()
         var attempt = 1
         
@@ -183,14 +189,14 @@ object ActionExecutor {
      */
     private fun findUniqueKeywordNode(root: AccessibilityNodeInfo?, keyword: String): AccessibilityNodeInfo? {
         val candidates = mutableListOf<Pair<AccessibilityNodeInfo, Float>>()
-        traverseTreeExhaustive(root, keyword.lowercase()) { text, desc, _, _ ->
+        traverseTreeExhaustive(root, keyword.lowercase()) { node, text, desc, _, _ ->
             // 完全匹配优先级最高
             if (text.equals(keyword, ignoreCase = true)) {
-                candidates.add(Pair(this, 1.0f))
+                candidates.add(Pair(node, 1.0f))
             } else if (desc.equals(keyword, ignoreCase = true)) {
-                candidates.add(Pair(this, 0.98f))
-            } else if (text == keyword || desc == keyword) {
-                candidates.add(Pair(this, 0.95f))
+                candidates.add(Pair(node, 0.98f))
+            } else if (text.equals(keyword, ignoreCase = true) || desc.equals(keyword, ignoreCase = true)) {
+                candidates.add(Pair(node, 0.95f))
             }
         }
         
@@ -213,14 +219,14 @@ object ActionExecutor {
         var bestMatch: AccessibilityNodeInfo? = null
         var highestScore = 0.0f
         
-        traverseTreeExhaustive(root, query) { text, desc, id, _ ->
-            val textScore = calculateSimilarity(query, text)
-            val descScore = calculateSimilarity(query, desc)
+        traverseTreeExhaustive(root, query) { node, text, desc, _, _ ->
+            val textScore = calculateSimilarity(query, text.lowercase())
+            val descScore = calculateSimilarity(query, desc.lowercase())
             val score = maxOf(textScore, descScore)
-            
+
             if (score > highestScore && score >= HIGH_SIMILARITY_THRESHOLD) {
                 highestScore = score
-                bestMatch = this
+                bestMatch = node
             }
         }
         
@@ -238,25 +244,23 @@ object ActionExecutor {
         val smaller = if (s1.length < s2.length) s1 else s2
         val larger = if (s1.length >= s2.length) s1 else s2
         
-        val previousRow = IntArray(smaller.length)
-        for (i in 0 until smaller.length) previousRow[i] = i
-        
+        val previousRow = IntArray(smaller.length + 1) { it }
+
         for (i in larger.indices) {
-            val currentRow = IntArray(smaller.length)
-            currentRow[0] = i
-            
+            val currentRow = IntArray(smaller.length + 1)
+            currentRow[0] = i + 1
+
             for (j in smaller.indices) {
-                val insertions = previousRow[j + 1] + 1
-                val deletions = currentRow[j] + 1
+                val insertions = currentRow[j] + 1
+                val deletions = previousRow[j + 1] + 1
                 val substitutions = previousRow[j] + if (smaller[j] == larger[i]) 0 else 1
-                
-                currentRow[j] = minOf(insertions, deletions, substitutions)
+                currentRow[j + 1] = minOf(insertions, deletions, substitutions)
             }
-            
-            previousRow.set(currentRow)
+
+            for (index in currentRow.indices) previousRow[index] = currentRow[index]
         }
-        
-        val distance = previousRow[smaller.length - 1]
+
+        val distance = previousRow[smaller.length]
         return 1.0f - (distance.toDouble() / larger.length).toFloat()
     }
 
@@ -334,8 +338,7 @@ object ActionExecutor {
      * 判断节点是否可见且可交互
      */
     private fun isVisibleAndClickable(node: AccessibilityNodeInfo): Boolean {
-        // 检查不可见类型
-        if (node.isInvisible) return false
+        if (!node.isVisibleToUser && (!node.isEnabled || !node.isFocusable)) return false
         if (node.isVisibleToUser) return true
         
         // 跳过对话框和 Toast

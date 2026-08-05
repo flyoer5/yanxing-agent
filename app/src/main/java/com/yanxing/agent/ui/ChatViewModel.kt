@@ -6,7 +6,7 @@ import android.net.Uri
 import android.provider.Settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.yanxing.agent.data.Attachment
+import com.yanxing.agent.data.ActionLogEntity
 import com.yanxing.agent.data.ActionStatus
 import com.yanxing.agent.data.ChatMessage
 import com.yanxing.agent.data.ChatRepository
@@ -20,6 +20,7 @@ import com.yanxing.agent.network.LlmClient
 import com.yanxing.agent.network.SearchResult
 import com.yanxing.agent.network.WebSearchClient
 import com.yanxing.agent.service.AIDecisionEngine
+import com.yanxing.agent.service.BatchedLogWriter
 import com.yanxing.agent.service.FloatingProgressOverlay
 import com.yanxing.agent.service.FloatingWindowService
 import com.yanxing.agent.service.RootShell
@@ -449,7 +450,12 @@ class ChatViewModel @Inject constructor(
                         is AIDecisionEngine.Action.Swipe -> "swipe"
                         is AIDecisionEngine.Action.InputText -> "input_text"
                     },
-                    targetElement = if (action !is AIDecisionEngine.Action.Swipe) action.query else null,
+                    targetElement = when (action) {
+                        is AIDecisionEngine.Action.Click -> action.query
+                        is AIDecisionEngine.Action.LongPress -> action.query
+                        is AIDecisionEngine.Action.InputText -> action.query
+                        is AIDecisionEngine.Action.Swipe -> null
+                    },
                     details = when (action) {
                         is AIDecisionEngine.Action.Click, is AIDecisionEngine.Action.LongPress, 
                         is AIDecisionEngine.Action.Swipe -> result.message
