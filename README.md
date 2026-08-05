@@ -109,12 +109,21 @@ API Key 只保存在设备本地的 Android Keystore 加密数据中，不会写
 - **聊天页语音接通**：麦克风按钮改为真实调用 `SpeechRecognizer`（此前只是占位状态标记）
 - **修复进度计数**：多轮决策时进度不再跨轮累加（曾出现"3 / 2"）
 
+## 第十三阶段（主线程阻塞修复 + Release 混淆）已完成
+
+新增：
+
+- **协程调度优化**：`ActionExecutor` 内部方法改 `suspend`，`Thread.sleep` → `kotlinx.coroutines.delay`；`ChatViewModel.executePendingAction` 用 `withContext(Dispatchers.Default)` 执行，避免阻塞主线程导致 ANR
+- **Release 混淆开启**：`isMinifyEnabled = true` + `isShrinkResources = true`；ProGuard 规则补齐 Hilt、Room、OkHttp、Kotlin Serialization、Compose 等依赖保留指令
+- **包体积优化**：Debug 19.1MB → Release 12.7MB，缩小 34%
+- **单元测试验证**：新增 `ActionExecutorCoroutineTest`（5 个用例）确保 `delay` 可被取消、重试逻辑在取消时提前退出
+
 ## 里程碑
 
-全部 12 个阶段已完成：基础对话 → 多会话/记忆 → 多模态 → 联网搜索 → 系统增强 → AI 替你行动 → 多轮自主决策 → 可停可控 + 语音入口。
+全部 13 个阶段已完成：基础对话 → 多会话/记忆 → 多模态 → 联网搜索 → 系统增强 → AI 替你行动 → 多轮自主决策 → 可停可控 + 语音入口 → 上线质量（防 ANR + 混淆瘦身）。
 
 ## 后续可扩展
 
 - 执行回滚（基于操作日志的逆操作）
-- Release 包 minify + 混淆
 - 悬浮窗内直接展示执行结果，减少切回主界面
+- Root 增强命令扩展（电量读取、屏幕亮度、返回后台等）
