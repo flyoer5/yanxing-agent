@@ -26,6 +26,7 @@ import com.yanxing.agent.service.BatchedLogWriter
 import com.yanxing.agent.service.FloatingProgressOverlay
 import com.yanxing.agent.service.FloatingWindowService
 import com.yanxing.agent.service.RootShell
+import com.yanxing.agent.service.RollbackController
 import com.yanxing.agent.service.ScreenReaderAccessibilityService
 import com.yanxing.agent.service.VoiceInputController
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -66,6 +67,7 @@ class ChatViewModel @Inject constructor(
     private var actionGoal: String = ""        // 当前任务目标
     private val actionRunner = ActionRunController(MAX_ACTION_ROUNDS) // 轮次与停止控制
     private val actionHistory = StringBuilder() // 已执行动作摘要
+    private val executedActions = mutableListOf<AIDecisionEngine.Action>() // 已执行的原始动作（用于回滚）
 
     private companion object {
         const val MAX_ACTION_ROUNDS = 5 // 多轮决策上限，防止死循环
@@ -499,6 +501,85 @@ class ChatViewModel @Inject constructor(
         actionRunner.reset()
         actionGoal = ""
         actionHistory.clear()
+        executedActions.clear()
+    }
+
+    /**
+     * 撤销上一个成功执行的行动。
+     * 从栈中弹出最近动作 → RollbackController 生成逆操作 → 确认执行 → 记 rollback 日志
+     */
+    fun undoLastAction() {
+        val lastAction = executedActions.removeLastOrNull() ?: run {
+            progressOverlay?.toast("没有可撤销的动作")
+            _uiState.update { it.copy(error = "没有可撤销的操作记录") }
+            return
+        }
+
+        val suggestion = RollbackController.suggestRollback(lastAction, uiState.value.lastScreenPackage.orEmpty())
+        val conversationId = currentConversationId.value
+        
+        if (suggestion == null || suggestion.actions.isEmpty()) {
+            progressOverlay?.toast("该动作暂不支持自动撤销：${lastAction.toDesc()}")
+            _uiState.update { it.copy(error = "无法自动生成撤销操作") }
+            // 保留动作在栈里（没删），但提示手动恢复
+            return
+        }
+
+        // 展示撤销说明
+        val undoSummary = "撤销 ${lastAction.toDesc()}：\n${suggestion.description}"
+        _uiState.update { it.copy(actionStatus = ActionStatus.Thinking(actionRunner.round)) }
+        
+        viewModelScope.launch {
+            batchedLogWriter.addLog(
+                packageName = uiState.value.lastScreenPackage.orEmpty(),
+                actionType = "rollback",
+                targetElement = when (lastAction) {
+                    is AIDecisionEngine.Action.Click -> lastAction.query
+                    is AIDecisionEngine.Action.InputText -> lastAction.query
+                    is AIDecisionEngine.Action.ClearText -> lastAction.query
+                    else -> null
+                },
+                details = undoSummary,
+                status = ActionStatus.Completed(suggestion.actions.size, suggestion.actions.size),
+                errorMessage = null,
+            )
+            repository.appendMessage(conversationId, "assistant", undoSummary)
+            
+            // 顺序执行逆操作
+            var successCount = 0
+            for (undoAction in suggestion.actions) {
+                val result = withContext(Dispatchers.Default) {
+                    when (undoAction) {
+                        is AIDecisionEngine.Action.Click -> ActionExecutor.click(undoAction.query)
+                        is AIDecisionEngine.Action.LongPress -> ActionExecutor.longPress(undoAction.query)
+                        is AIDecisionEngine.Action.Swipe -> ActionExecutor.swipe(undoAction.direction)
+                        is AIDecisionEngine.Action.InputText -> ActionExecutor.inputText(undoAction.query, undoAction.text)
+                        is AIDecisionEngine.Action.Back -> ActionExecutor.back()
+                        is AIDecisionEngine.Action.ClearText -> ActionExecutor.clearText(undoAction.query)
+                    }
+                }
+                if (result.success) successCount++
+                
+                // 每次操作都写一条 rollback 日志
+                batchedLogWriter.addLog(
+                    packageName = uiState.value.lastScreenPackage.orEmpty(),
+                    actionType = "rollback",
+                    targetElement = when (undoAction) {
+                        is AIDecisionEngine.Action.Back -> null
+                        is AIDecisionEngine.Action.ClearText -> undoAction.query
+                        else -> null
+                    },
+                    details = "${undoAction.toDesc()}：${result.message}",
+                    status = if (result.success) ActionStatus.Completed(1, 1) else ActionStatus.Idle,
+                    errorMessage = if (!result.success) result.message else null,
+                )
+            }
+            
+            val finalSummary = "撤销完成：$successCount/${suggestion.actions.size} 步成功。\n原操作：${lastAction.toDesc()}\n逆操作：${suggestion.description}"
+            repository.appendMessage(conversationId, "assistant", finalSummary)
+            progressOverlay?.toast("撤销完成")
+            progressOverlay?.setUndoButton(executedActions.isNotEmpty())
+        }
     }
 
     /** 用户点击确认按钮，批准当前动作 */
@@ -559,6 +640,8 @@ class ChatViewModel @Inject constructor(
                     is AIDecisionEngine.Action.LongPress -> com.yanxing.agent.service.ActionExecutor.longPress(action.query)
                     is AIDecisionEngine.Action.Swipe -> com.yanxing.agent.service.ActionExecutor.swipe(action.direction)
                     is AIDecisionEngine.Action.InputText -> com.yanxing.agent.service.ActionExecutor.inputText(action.query, action.text)
+                    is AIDecisionEngine.Action.Back -> com.yanxing.agent.service.ActionExecutor.back()
+                    is AIDecisionEngine.Action.ClearText -> com.yanxing.agent.service.ActionExecutor.clearText(action.query)
                 }
             }
 
@@ -569,6 +652,9 @@ class ChatViewModel @Inject constructor(
             progressOverlay?.setActionModeEnabled(true)
             if (result.success) {
                 progressOverlay?.incrementSuccess()
+                // 记录到回滚栈
+                executedActions.add(action)
+                progressOverlay?.setUndoButton(executedActions.isNotEmpty())
             } else {
                 progressOverlay?.incrementFailed()
             }
@@ -583,17 +669,22 @@ class ChatViewModel @Inject constructor(
                         is AIDecisionEngine.Action.LongPress -> "click"
                         is AIDecisionEngine.Action.Swipe -> "swipe"
                         is AIDecisionEngine.Action.InputText -> "input_text"
+                        is AIDecisionEngine.Action.Back -> "back"
+                        is AIDecisionEngine.Action.ClearText -> "clear_text"
                     },
                     targetElement = when (action) {
                         is AIDecisionEngine.Action.Click -> action.query
                         is AIDecisionEngine.Action.LongPress -> action.query
                         is AIDecisionEngine.Action.InputText -> action.query
-                        is AIDecisionEngine.Action.Swipe -> null
+                        is AIDecisionEngine.Action.ClearText -> action.query
+                        else -> null
                     },
                     details = when (action) {
                         is AIDecisionEngine.Action.Click, is AIDecisionEngine.Action.LongPress,
                         is AIDecisionEngine.Action.Swipe -> result.message
                         is AIDecisionEngine.Action.InputText -> action.text
+                        is AIDecisionEngine.Action.Back -> "执行返回动作"
+                        is AIDecisionEngine.Action.ClearText -> "清空输入框"
                     }.orEmpty(),
                     status = if (result.success) ActionStatus.Completed(1, 1) else ActionStatus.Idle,
                     errorMessage = if (!result.success) result.message else null,
@@ -779,6 +870,7 @@ class ChatViewModel @Inject constructor(
         if (progressOverlay == null) {
             progressOverlay = FloatingProgressOverlay(_context).apply {
                 onStopRequested = { stopAction() }
+                onUndoRequested = { undoLastAction() }
             }
         }
     }

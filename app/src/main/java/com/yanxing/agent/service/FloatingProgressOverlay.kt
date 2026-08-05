@@ -25,9 +25,13 @@ class FloatingProgressOverlay(private val context: Context) {
     private var failedCountTextView: TextView? = null
     private var currentTaskTextView: TextView? = null
     private var controlButtonView: android.widget.Button? = null
+    private var undoButtonView: android.widget.Button? = null
 
     /** 用户点击"停止执行"时的回调，由 ChatViewModel 注入 */
     var onStopRequested: (() -> Unit)? = null
+
+    /** 用户点击"撤销上一个动作"的回调 */
+    var onUndoRequested: (() -> Unit)? = null
 
     // 内部状态流
     private val _currentState = MutableStateFlow(CheckboxState())
@@ -135,6 +139,12 @@ class FloatingProgressOverlay(private val context: Context) {
             e.printStackTrace()
         }
     }
+
+    /** 显示提示 Toast（由于悬浮窗无法弹出 Toast，这里只打印日志） */
+    fun toast(message: String) {
+        Log.i("YanxingToast", message)
+        // TODO: 在将来可以通过震动反馈或简单 UI 提示替代
+    }
     
     /**
      * 创建并显示悬浮窗
@@ -222,7 +232,8 @@ class FloatingProgressOverlay(private val context: Context) {
                 setPadding(0, 4, 0, 8)
             }
             currentTaskTextView = currentTaskText
-            
+
+            // 停止按钮
             val controlButton = android.widget.Button(context).apply {
                 text = "停止执行"
                 textSize = 14f
@@ -239,6 +250,19 @@ class FloatingProgressOverlay(private val context: Context) {
                 onStopRequested?.invoke()
             }
 
+            // 撤销按钮（隐藏直到有可撤销动作）
+            val undoButton = android.widget.Button(context).apply {
+                text = "撤销上一个"
+                textSize = 13f
+                setTextColor(context.getColor(android.R.color.white))
+                setBackgroundColor(context.getColor(android.R.color.holo_blue_dark))
+                setPadding(16, 6, 16, 6)
+                visibility = View.GONE
+                contentDescription = "撤销上一个操作"
+            }
+            undoButtonView = undoButton
+            undoButton.setOnClickListener { onUndoRequested?.invoke() }
+
             cardView.addView(titleText)
             cardView.addView(statusText)
             cardView.addView(progressText)
@@ -246,6 +270,7 @@ class FloatingProgressOverlay(private val context: Context) {
             cardView.addView(failedCountText)
             cardView.addView(currentTaskText)
             cardView.addView(controlButton)
+            cardView.addView(undoButton)
             currentView = cardView
             
             // 添加到 Window
@@ -291,6 +316,11 @@ class FloatingProgressOverlay(private val context: Context) {
                 ),
             )
         }
+    }
+
+    /** 设置撤销按钮可见性（用于显示可用计数） */
+    fun setUndoButton(visible: Boolean) {
+        undoButtonView?.visibility = if (visible) View.VISIBLE else View.GONE
     }
 }
 

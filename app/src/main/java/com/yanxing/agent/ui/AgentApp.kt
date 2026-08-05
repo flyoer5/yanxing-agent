@@ -35,6 +35,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.Chat
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outdated.Refresh
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.Mic
@@ -106,6 +107,9 @@ fun AgentApp(
             viewModel.updateDraft(initialText)
         }
     }
+    
+    // 撤销按钮的回调
+    val onUndoAction = { viewModel.undoLastAction() }
 
     LaunchedEffect(state.error) {
         state.error?.let { snackbarHostState.showSnackbar(it); viewModel.clearError() }
@@ -188,6 +192,7 @@ fun AgentApp(
                 onToggleSearch = viewModel::toggleSearchEnabled,
                 onConfirmAction = viewModel::confirmCurrentAction,
                 onStopAction = viewModel::stopAction,
+                onUndoAction = onUndoAction,
                 modifier = Modifier.padding(padding),
             )
             1 -> MemoryScreen(
@@ -261,6 +266,7 @@ private fun ChatScreen(
     onToggleSearch: () -> Unit,
     onConfirmAction: (Boolean) -> Unit,
     onStopAction: () -> Unit,
+    onUndoAction: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -417,9 +423,10 @@ private fun ChatScreen(
                                         }
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.End,
+                                            horizontalArrangement = Arrangement.SpaceBetween,
                                         ) {
                                             StopActionButton(onStopAction)
+                                            UndoActionButton(onUndoAction)
                                         }
                                     }
                                 }
@@ -1070,6 +1077,24 @@ private fun StopActionButton(onStop: () -> Unit) {
         )
         Spacer(Modifier.width(4.dp))
         Text("停止", style = MaterialTheme.typography.labelMedium)
+    }
+}
+
+@Composable
+private fun UndoActionButton(onUndo: () -> Unit) {
+    androidx.compose.material3.TextButton(
+        onClick = onUndo,
+        colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+            contentColor = MaterialTheme.colorScheme.primary,
+        ),
+    ) {
+        Icon(
+            Icons.Outlined.Refresh,
+            contentDescription = "撤销上一个动作",
+            modifier = Modifier.size(16.dp),
+        )
+        Spacer(Modifier.width(4.dp))
+        Text("撤销", style = MaterialTheme.typography.labelMedium)
     }
 }
 

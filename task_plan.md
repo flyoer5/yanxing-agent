@@ -1,110 +1,77 @@
-# 言行 Agent 第十三阶段开发计划
+# 言行 Agent 第十四阶段开发计划
 
 ## 目标
-修复主线程阻塞 bug + 开启 Release 混淆，提升上线质量。
+实现执行回滚（v1.0）：撤销上一个动作，支持点击返回、输入清空、滑动反向。
 
 ## 阶段
-- [complete] 1-12. 前序阶段
-- [in-progress] 13. Release 混淆 + 修复主线程阻塞
+- [complete] 1-13. 前序阶段
+- [in-progress] 14. 执行回滚（v1.0）—— 撤销上一个动作
 
 ## 本阶段验收标准
-- [ ] `executePendingAction` 里 `ActionExecutor` 调用切换到 `Dispatchers.Default`，避免阻塞主线程
-- [ ] `ActionExecutor` 内 `Thread.sleep` 改为 `delay`（协程版本，可响应取消）
-- [ ] `build.gradle.kts` Release 构建开启 `isMinifyEnabled = true`
-- [ ] `proguard-rules.pro` 补全所有依赖的保留规则（Hilt、Room、OkHttp、Kotlin Serialization、Compose、data 类）
-- [ ] CI 验证 Release APK 可安装、签名校验通过、包体积显著缩小
-- [ ] 补充单元测试验证协程取消响应（ActionExecutor 模拟测试）
+- [ ] `ActionExecutor` 新增 `back()`（全局返回）、`clearText(query)`（清空输入框）方法
+- [ ] `RollbackController` 根据最近成功日志生成逆操作建议
+  - `click` → `back()`
+  - `input_text` → `clearText(targetElement)`
+  - `swipe` → 反方向 swipe
+- [ ] `ChatViewModel` 维护已执行动作栈 `executedActions`，提供 `undoLastAction()` 入口
+- [ ] UI 显示：悬浮窗和执行状态区加「撤销」按钮，确认后执行逆操作并记日志
+- [ ] 逆操作记为 `actionType="rollback"`，结果写进会话摘要
 - [ ] GitHub Actions 编译、测试成功
 
 ## 技术方案
 
-### 修复主线程阻塞
-**问题根源**：`executePendingAction` 跑在 `viewModelScope.launch`（默认 `Dispatchers.Main`），直接调用 `ActionExecutor.click/longPress/inputText`，这些方法内部有：
-- `Thread.sleep(50)` 用于等待 UI 稳定
-- `Thread.sleep(200)` 用于重试间隔
-- `ActionExecutor` 是 `object`，方法全同步阻塞
-
-慢机上会触发 ANR（Android Not Responding）。
-
-**解决方案**：
-1. `ChatViewModel.executePendingAction` 里调用 `ActionExecutor.*` 时用 `withContext(Dispatchers.Default)` 包住
-2. `ActionExecutor` 内部：
-   - 把 `Thread.sleep` 改成 `kotlinx.coroutines.delay`
-   - `withRetrySupport` 改为 `suspend` 函数
-   - 所有操作方法（`click/longPress/swipe/inputText`）改为 `suspend`
-3. `RootShell.execute` 里的 `Thread.sleep` 保持不变（它本身已经在 IO 操作上下文）
-
-### Release 混淆
-**ProGuard 规则**（`app/proguard-rules.pro`）：
-```proguard
-# Hilt
--dontwarn com.google.errorprone.annotations.**
--keep class dagger.hilt.** { *; }
--keep class javax.inject.** { *; }
--keep class * extends dagger.hilt.android.lifecycle.HiltViewModel
-
-# Room
--keep class * extends androidx.room.RoomDatabase
--keep @androidx.room.Entity class *
--dontwarn androidx.room.paging.**
-
-# OkHttp / Retrofit
--dontwarn okhttp3.**
--dontwarn okio.**
--keepnames class okhttp3.internal.publicsuffix.PublicSuffixDatabase
-
-# Kotlin Serialization
--keepattributes *Annotation*, InnerClasses
--dontnote kotlinx.serialization.**
--keep,includedescriptorclasses class com.yanxing.agent.**$$serializer { *; }
--keepclassmembers class com.yanxing.agent.** {
-    *** Companion;
+### RollbackController
+纯逻辑类，不依赖 Android 框架：
+```kotlin
+object RollbackController {
+    fun suggestRollback(action: AIDecisionEngine.Action, currentPackage: String): Suggestion {
+        return when (action) {
+            is Click -> Suggestion(description = "返回上一页", actions = listOf(Back))
+            is InputText -> Suggestion(description = "清空输入框", actions = listOf(ClearText(action.query)))
+            is Swipe -> Suggestion(description = "反向滑动 ${direction.name}", actions = listOf(Swipe(reversed(direction))))
+            is LongPress -> Suggestion(description = "无法自动撤销，请手动恢复")
+        }
+    }
 }
--keepclasseswithmembers class com.yanxing.agent.** {
-    kotlinx.serialization.KSerializer serializer(...);
-}
-
-# Compose
--keep class androidx.compose.** { *; }
--dontwarn androidx.compose.**
-
-# AccessibilityService（避免反射查找失败）
--keep class com.yanxing.agent.service.ScreenReaderAccessibilityService { *; }
--keep class com.yanxing.agent.service.FloatingWindowService { *; }
-
-# Data 类（Room/API 序列化依赖字段名）
--keepclassmembers class com.yanxing.agent.data.** { *; }
--keepclassmembers class com.yanxing.agent.network.** { *; }
-
-# Enum（保留 valueOf）
--keepclassmembers enum * {
-    public static **[] values();
-    public static ** valueOf(java.lang.String);
-}
-
-# AndroidX & Material
--dontwarn com.google.android.material.**
--keep class com.google.android.material.** { *; }
 ```
+**置信度评分**：点击/滑动有较高的回溯效果（置信度 0.8+），长按无明确逆操作（0.2）。
 
-**包体积预期**：Debug 19MB → Release 混淆后约 12-13MB（缩小 30-35%）
+### ActionExecutor 扩展
+```kotlin
+suspend fun back(): ActionResult  // service.performGlobalAction(GLOBAL_ACTION_BACK)
+suspend fun clearText(query: String): ActionResult  // 聚焦 + SET_TEXT("")
+```
+注意：`clearText` 需要找到输入框节点后清空内容，不能直接设空字符串（某些应用是只读文本）。
+
+### ChatViewModel 状态管理
+- 新字段：`private var executedActions = mutableListOf<AIDecisionEngine.Action>()`
+- 每成功执行一个动作后压入栈
+- `executePendingAction` 里在动作成功后 `executedActions.add(action)`
+- `undoLastAction()`: pop 栈顶 → RollbackController.suggest() → 展示确认卡片 → 执行逆操作 → 记 rollback 日志
+
+### UI
+1. **悬浮窗**：`FloatingProgressOverlay` 添加「撤销」按钮（紧接停止按钮下方），点击时触发回调给 ViewModel
+2. **聊天界面**：在 Executing/PendingConfirm 状态区域底部增加撤销按钮
+3. **确认流程**：直接执行逆操作 + Toast 提示（「已撤销：XX 操作」）—— v1 不做二次确认简化复杂度
+
+### 日志记录
+逆操作记入日志表，`actionType="rollback"`, `details="已撤销：点击 [xxx] → 返回"`
 
 ### 单元测试
-新增 `ActionExecutorCoroutineTest.kt`，验证：
-1. `delay` 可被协程取消（不会永久阻塞）
-2. 重试逻辑在取消时提前退出
-3. 操作在 Default dispatcher 上执行不会阻塞 Main
+新增 `RollbackControllerTest.kt`，验证不同动作类型的逆操作建议是否正确（无需真机执行）。
 
 ## 文件清单
 | 文件 | 操作 | 说明 |
 |---|---|---|
-| `service/ActionExecutor.kt` | 修改 | 方法改 suspend，`Thread.sleep` → `delay` |
-| `ui/ChatViewModel.kt` | 修改 | `executePendingAction` 加 `withContext(Dispatchers.Default)` |
-| `app/build.gradle.kts` | 修改 | Release 开启 `isMinifyEnabled = true` |
-| `app/proguard-rules.pro` | 修改 | 补全所有依赖的混淆规则 |
-| `test/.../ActionExecutorCoroutineTest.kt` | 新建 | 协程取消响应测试 |
+| `service/ActionExecutor.kt` | 修改 | 新增 `back()`, `clearText()` |
+| `service/RollbackController.kt` | 新建 | 逆操作建议生成器 |
+| `ui/ChatViewModel.kt` | 修改 | 引入 `executedActions` 栈、`undoLastAction()` |
+| `service/FloatingProgressOverlay.kt` | 修改 | 加撤销按钮与回调 |
+| `ui/AgentApp.kt` | 修改 | 聊天页面加撤销 UI |
+| `test/.../RollbackControllerTest.kt` | 新建 | 逆操作建议单测 |
 
-## 错误记录
-| 错误 | 尝试 | 处理 |
-|---|---:|---|
-| （待填充） | - | - |
+## 风险与边界
+- **长按无明确逆操作**：LongPress 的效果取决于目标应用，简单回退可能无效，UI 需提示「无法自动撤销」
+- **输入框恢复原文本**：v1.0 只做「清空」，不提供「恢复原文」功能（原文本不在 ActionLog 中记录）
+- **全局返回的可靠性**：某些应用的导航树较深，单次 back 可能不够，留作后续增强
+- **无障碍权限**：performGlobalAction 不需要额外授权，但部分定制 ROM 可能不支持
