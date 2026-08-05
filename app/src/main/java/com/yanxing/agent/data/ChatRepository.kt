@@ -127,6 +127,11 @@ class ChatRepository @Inject constructor(
         actionLogDao.insert(log)
     }
 
+    /** 批量插入日志（性能优化） */
+    suspend fun addBatchActionLogs(logs: List<ActionLogEntity>) {
+        actionLogDao.insertAll(logs)
+    }
+
     suspend fun deleteActionLog(id: String) = actionLogDao.delete(id)
     suspend fun deleteAllActionLogs() = actionLogDao.deleteAll()
     suspend fun deleteActionLogsByPackage(packageName: String) = actionLogDao.deleteByPackage(packageName)

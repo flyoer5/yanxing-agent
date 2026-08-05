@@ -41,9 +41,17 @@ class ChatViewModel @Inject constructor(
     private val llmClient: LlmClient,
     private val webSearchClient: WebSearchClient,
 ) : ViewModel() {
+    
+    // ===== 状态管理 =====
     private val currentConversationId = MutableStateFlow("")
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
+    
+    // ===== 批量日志写入器 =====
+    private val batchedLogWriter = BatchedLogWriter(repository)
+    
+    // ===== 悬浮窗进度显示 =====
+    private var progressOverlay: FloatingProgressOverlay? = null
 
     init {
         viewModelScope.launch {
@@ -341,6 +349,16 @@ class ChatViewModel @Inject constructor(
                     error = "没有检测到可执行的操作"
                 ) 
             }
+            progressOverlay?.hide()
+            progressOverlay = null
+        } else {
+            _uiState.update { 
+                it.copy(
+                    actionStatus = ActionStatus.Idle,
+                    error = null
+                )
+            }
+            progressOverlay?.hide()
             return
         }
         
@@ -372,6 +390,12 @@ class ChatViewModel @Inject constructor(
                     )
                 )
             }
+            
+            // 初始化悬浮窗进度
+            ensureProgressOverlay()
+            progressOverlay?.setTotalActions(actions.size)
+            progressOverlay?.setCurrentAction(actions[index].toDesc())
+            progressOverlay?.show()
             
             // 开始执行这个动作
             executePendingAction(actions, index + 1)
@@ -405,14 +429,22 @@ class ChatViewModel @Inject constructor(
                 is AIDecisionEngine.Action.InputText -> com.yanxing.agent.service.ActionExecutor.inputText(action.query, action.text)
             }
             
-            // 记录操作日志
+            // 更新悬浮窗状态
+            progressOverlay?.setActionModeEnabled(true)
+            if (result.success) {
+                progressOverlay?.incrementSuccess()
+            } else {
+                progressOverlay?.incrementFailed()
+            }
+            
+            // 批量写入操作日志（性能优化）
             viewModelScope.launch {
                 val packageName = uiState.value.lastScreenPackage.orEmpty()
-                repository.addActionLog(
+                batchedLogWriter.addLog(
                     packageName = packageName,
                     actionType = when (action) {
                         is AIDecisionEngine.Action.Click -> "click"
-                        is AIDecisionEngine.Action.LongPress -> "click" // long_press also uses click action type for logging
+                        is AIDecisionEngine.Action.LongPress -> "click"
                         is AIDecisionEngine.Action.Swipe -> "swipe"
                         is AIDecisionEngine.Action.InputText -> "input_text"
                     },
@@ -537,10 +569,23 @@ class ChatViewModel @Inject constructor(
             // 某些设备可能没有该 Intent，忽略
         }
     }
-
+    
+    /** 确保悬浮窗已初始化 */
+    private fun ensureProgressOverlay() {
+        if (progressOverlay == null) {
+            progressOverlay = FloatingProgressOverlay(_context)
+        }
+    }
+    
+    override fun onCleared() {
+        super.onCleared()
+        // 清理资源
+        batchedLogWriter.shutdown()
+        progressOverlay?.hide()
+    }
+    
     /** 将 ChatMessage 转换为 API 请求的 ChatMessageDto，支持多模态 */
-    private fun ChatMessage.toChatMessageDto(): ChatMessageDto {
-        val images = attachments.filter { it.type == "image" && it.base64 != null }
+    private fun ChatMessage.toChatMessageDto(): ChatMessageDto {        val images = attachments.filter { it.type == "image" && it.base64 != null }
         return if (images.isNotEmpty()) {
             ChatMessageDto.withImage(
                 role = role,

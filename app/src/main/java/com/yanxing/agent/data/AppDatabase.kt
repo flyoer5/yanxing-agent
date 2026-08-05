@@ -139,6 +139,9 @@ interface ActionLogDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(log: ActionLogEntity)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(logs: List<ActionLogEntity>)
+
     @Query("DELETE FROM action_logs WHERE id = :id")
     suspend fun delete(id: String)
 
