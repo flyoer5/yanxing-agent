@@ -301,10 +301,10 @@ private fun ChatScreen(
     }
 
     val canSend = (state.draft.isNotBlank() || state.pendingAttachments.isNotEmpty()) && !state.isSending
-    
+
     // 行动模式下的特殊处理
     val isActionMode = state.actionModeEnabled
-    
+
     Column(modifier = modifier.fillMaxSize()) {
         // 消息列表
         if (state.messages.isEmpty()) {
@@ -325,7 +325,7 @@ private fun ChatScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 items(state.messages, key = { it.id }) { message -> MessageBubble(message) }
-                
+
                 // 行动模式的状态和屏幕内容显示
                 if (isActionMode) {
                     when (val status = state.actionStatus) {
@@ -363,6 +363,21 @@ private fun ChatScreen(
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
                                     }
+                                }
+                            }
+                        }
+                        is ActionStatus.Thinking -> {
+                            item(key = "action-thinking") {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        "AI 正在分析第 ${status.round} 轮执行结果…",
+                                        style = MaterialTheme.typography.labelSmall,
+                                    )
                                 }
                             }
                         }
@@ -418,7 +433,7 @@ private fun ChatScreen(
                         is ActionStatus.Idle -> {}
                     }
                 }
-                
+
                 if (state.searching) {
                     item(key = "searching") {
                         Row(
@@ -712,7 +727,7 @@ private fun ActionModeFields(
     onStartActionMode: () -> Unit,
 ) {
     Text("替我行动", style = MaterialTheme.typography.titleMedium)
-    
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -725,9 +740,9 @@ private fun ActionModeFields(
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    
+
     Spacer(Modifier.height(8.dp))
-    
+
     // 无障碍服务状态和行动入口
     Row(
         modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
@@ -750,7 +765,7 @@ private fun ActionModeFields(
             Text("开始行动")
         }
     }
-    
+
     // 执行进度显示
     when (val status = state.actionStatus) {
         is ActionStatus.Idle -> {}
@@ -765,6 +780,14 @@ private fun ActionModeFields(
         is ActionStatus.Ready -> {
             Spacer(Modifier.height(8.dp))
             Text("屏幕内容已就绪，可在聊天界面输入需求", style = MaterialTheme.typography.labelSmall)
+        }
+        is ActionStatus.Thinking -> {
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(8.dp))
+                Text("AI 正在分析第 ${status.round} 轮执行结果…", style = MaterialTheme.typography.labelSmall)
+            }
         }
         is ActionStatus.Executing -> {
             Spacer(Modifier.height(8.dp))
@@ -952,7 +975,7 @@ private fun PlaceholderScreen(text: String, modifier: Modifier = Modifier) {
 private fun ConfirmActionCard(action: AIDecisionEngine.Action, onConfirm: (Boolean) -> Unit) {
     val isClick = action is AIDecisionEngine.Action.Click
     val isSwipe = action is AIDecisionEngine.Action.Swipe
-    
+
     Card(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         colors = androidx.compose.material3.CardDefaults.cardColors(
@@ -961,7 +984,7 @@ private fun ConfirmActionCard(action: AIDecisionEngine.Action, onConfirm: (Boole
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(
-                text = if (action is AIDecisionEngine.Action.InputText) "输入文本确认" 
+                text = if (action is AIDecisionEngine.Action.InputText) "输入文本确认"
                     else if (isClick) "点击操作确认"
                     else if (isSwipe) "滑动操作确认"
                     else "长按操作确认",
@@ -969,7 +992,7 @@ private fun ConfirmActionCard(action: AIDecisionEngine.Action, onConfirm: (Boole
                 color = MaterialTheme.colorScheme.primary,
             )
             Spacer(Modifier.height(8.dp))
-            
+
             // 显示具体动作描述
             Text(
                 text = when (action) {
@@ -981,9 +1004,9 @@ private fun ConfirmActionCard(action: AIDecisionEngine.Action, onConfirm: (Boole
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            
+
             Spacer(Modifier.height(12.dp))
-            
+
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -1001,7 +1024,7 @@ private fun ConfirmActionCard(action: AIDecisionEngine.Action, onConfirm: (Boole
                     Text("跳过")
                 }
             }
-            
+
             Spacer(Modifier.height(4.dp))
             Text(
                 text = "💡 AI 认为需要此操作，但你可以拒绝它。",
@@ -1142,7 +1165,7 @@ private fun ActionLogScreen(
             TextButton(onClick = onClearAll, enabled = logs.isNotEmpty()) { Text("清空") }
         }
         Spacer(Modifier.height(12.dp))
-        
+
         if (logs.isEmpty()) {
             PlaceholderScreen("暂无操作日志", Modifier.fillMaxWidth().weight(1f))
         } else {
@@ -1177,9 +1200,9 @@ private fun ActionLogItem(log: ActionLogEntity) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            
+
             Spacer(Modifier.height(4.dp))
-            
+
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Box(
                     modifier = Modifier.padding(horizontal = 6.dp).clip(RoundedCornerShape(4.dp))
@@ -1209,7 +1232,7 @@ private fun ActionLogItem(log: ActionLogEntity) {
                         },
                     )
                 }
-                
+
                 Box(
                     modifier = Modifier.padding(horizontal = 6.dp).clip(RoundedCornerShape(4.dp))
                         .background(when (log.status) {
@@ -1236,7 +1259,7 @@ private fun ActionLogItem(log: ActionLogEntity) {
                     )
                 }
             }
-            
+
             if (log.targetElement != null && log.targetElement.isNotBlank()) {
                 Spacer(Modifier.height(6.dp))
                 Text(
@@ -1245,7 +1268,7 @@ private fun ActionLogItem(log: ActionLogEntity) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            
+
             if (log.details.isNotBlank() && log.details != log.targetElement) {
                 Spacer(Modifier.height(6.dp))
                 Text(
@@ -1254,7 +1277,7 @@ private fun ActionLogItem(log: ActionLogEntity) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            
+
             if (log.errorMessage != null && log.errorMessage!!.isNotBlank()) {
                 Spacer(Modifier.height(6.dp))
                 Text(

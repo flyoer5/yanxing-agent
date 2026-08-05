@@ -44,17 +44,26 @@ class ChatViewModel @Inject constructor(
     private val llmClient: LlmClient,
     private val webSearchClient: WebSearchClient,
 ) : ViewModel() {
-    
+
     // ===== 状态管理 =====
     private val currentConversationId = MutableStateFlow("")
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
-    
+
     // ===== 批量日志写入器 =====
     private val batchedLogWriter = BatchedLogWriter(repository)
-    
+
     // ===== 悬浮窗进度显示 =====
     private var progressOverlay: FloatingProgressOverlay? = null
+
+    // ===== 多轮行动决策上下文 =====
+    private var actionGoal: String = ""        // 当前任务目标
+    private var actionRound: Int = 0           // 当前决策轮次
+    private val actionHistory = StringBuilder() // 已执行动作摘要
+
+    private companion object {
+        const val MAX_ACTION_ROUNDS = 5 // 多轮决策上限，防止死循环
+    }
 
     init {
         viewModelScope.launch {
@@ -192,6 +201,11 @@ class ChatViewModel @Inject constructor(
             _uiState.update { it.copy(error = "请先在设置中填写 API 地址、Key 和模型") }
             return
         }
+        // 替我行动模式：消息作为任务指令，走 AI 自动操作链路（读屏 → 决策 → 确认 → 执行 → 多轮续判）
+        if (current.actionModeEnabled && text.isNotBlank() && attachments.isEmpty()) {
+            startActionTask(text)
+            return
+        }
         _uiState.update { it.copy(draft = "", isSending = true, error = null, pendingAttachments = emptyList()) }
         viewModelScope.launch {
             val conversationId = currentConversationId.value
@@ -305,7 +319,7 @@ class ChatViewModel @Inject constructor(
     }
 
     // ===== 替我行动模式 =====
-    
+
     fun toggleActionMode() {
         _uiState.update { it.copy(actionModeEnabled = !it.actionModeEnabled) }
     }
@@ -316,15 +330,15 @@ class ChatViewModel @Inject constructor(
             return
         }
         _uiState.update { it.copy(actionStatus = ActionStatus.Readying, lastScreenPackage = "") }
-        
+
         viewModelScope.launch {
             val screenText = extractScreenText()
-            _uiState.update { 
+            _uiState.update {
                 it.copy(
                     actionStatus = ActionStatus.Ready(screenText),
                     lastScreenPackage = ScreenReaderAccessibilityService.lastScreenPackage,
                     draft = "",
-                ) 
+                )
             }
         }
     }
@@ -339,50 +353,102 @@ class ChatViewModel @Inject constructor(
         return "当前界面：$pkg\n内容:\n$text"
     }
 
+    /** 行动模式入口：把用户消息作为任务，读屏后让 AI 规划动作（第一轮决策） */
+    private fun startActionTask(goal: String) {
+        if (!ScreenReaderAccessibilityService.isConnected) {
+            _uiState.update { it.copy(draft = "", error = "请先在设置中开启无障碍服务") }
+            return
+        }
+        actionGoal = goal
+        actionRound = 1
+        actionHistory.clear()
+        _uiState.update { it.copy(draft = "", isSending = true, error = null, pendingAttachments = emptyList()) }
+
+        viewModelScope.launch {
+            val conversationId = currentConversationId.value
+            repository.appendMessage(conversationId, "user", goal)
+            val screenText = extractScreenText()
+            val current = uiState.value
+            val systemPrompt = AIDecisionEngine.generateSystemPrompt(screenText, lastAction = null)
+            val request = ChatCompletionRequest(
+                model = current.model,
+                messages = listOf(
+                    systemPrompt,
+                    ChatMessageDto.text("user", "任务目标：$goal"),
+                ),
+                stream = false,
+            )
+            val result = llmClient.complete(current.baseUrl, current.apiKey, request)
+            _uiState.update { it.copy(isSending = false) }
+            result.onSuccess { reply ->
+                val sequence = AIDecisionEngine.parseLLMResponse(reply)
+                if (sequence.actions.isEmpty()) {
+                    val message = sequence.error ?: "AI 未规划出可执行的操作"
+                    _uiState.update {
+                        it.copy(
+                            actionStatus = ActionStatus.Completed(0, 0),
+                            error = if (sequence.error != null) message else null,
+                        )
+                    }
+                    repository.appendMessage(conversationId, "assistant", "任务完成：无需执行操作。$message")
+                    resetActionContext()
+                } else {
+                    _uiState.update {
+                        it.copy(actionStatus = ActionStatus.PendingConfirm.Waiting(sequence.actions, 0))
+                    }
+                }
+            }.onFailure { error ->
+                _uiState.update {
+                    it.copy(
+                        actionStatus = ActionStatus.Completed(0, 0),
+                        error = "行动决策失败：${error.message ?: "未知错误"}",
+                    )
+                }
+                repository.appendMessage(conversationId, "assistant", "行动决策失败：${error.message ?: "未知错误"}")
+                resetActionContext()
+            }
+        }
+    }
+
+    /** 供外部直接注入动作序列（悬浮窗等入口预留） */
     fun executeAction(prompt: String, actions: List<AIDecisionEngine.Action>) {
         if (!ScreenReaderAccessibilityService.isConnected) {
             _uiState.update { it.copy(error = "无障碍服务未开启") }
             return
         }
-        
+        actionGoal = prompt.ifBlank { actionGoal }
+        actionRound = 1
+        actionHistory.clear()
+
         if (actions.isEmpty()) {
-            _uiState.update { 
+            _uiState.update {
                 it.copy(
                     actionStatus = ActionStatus.Completed(0, 0),
-                    error = "没有检测到可执行的操作"
-                ) 
-            }
-            progressOverlay?.hide()
-            progressOverlay = null
-        } else {
-            _uiState.update { 
-                it.copy(
-                    actionStatus = ActionStatus.Idle,
-                    error = null
+                    error = "没有检测到可执行的操作",
                 )
             }
             progressOverlay?.hide()
-            return
-        }
-        
-        // 进入待确认状态
-        _uiState.update { 
-            it.copy(actionStatus = ActionStatus.PendingConfirm.Waiting(actions, 0)) 
+            progressOverlay = null
+            resetActionContext()
+        } else {
+            _uiState.update {
+                it.copy(actionStatus = ActionStatus.PendingConfirm.Waiting(actions, 0))
+            }
         }
     }
-    
+
     /** 用户点击确认按钮，批准当前动作 */
     fun confirmCurrentAction(approved: Boolean) {
         val current = uiState.value.actionStatus
-        
+
         if (current !is ActionStatus.PendingConfirm.Waiting) return
-        
+
         val actions = current.actions
         val index = current.index
-        
+
         if (approved) {
             // 切换到执行状态
-            _uiState.update { 
+            _uiState.update {
                 it.copy(
                     actionStatus = ActionStatus.Executing(
                         index + 1,
@@ -393,13 +459,13 @@ class ChatViewModel @Inject constructor(
                     )
                 )
             }
-            
+
             // 初始化悬浮窗进度
             ensureProgressOverlay()
             progressOverlay?.setTotalActions(actions.size)
             progressOverlay?.setCurrentAction(actions[index].toDesc())
             progressOverlay?.show()
-            
+
             // 开始执行这个动作
             executePendingAction(actions, index + 1)
         } else {
@@ -410,28 +476,24 @@ class ChatViewModel @Inject constructor(
             executePendingActionSkipping(actions, index + 1)
         }
     }
-    
+
     private fun executePendingAction(actions: List<AIDecisionEngine.Action>, nextIndex: Int) {
         viewModelScope.launch {
-            if (nextIndex >= actions.size) {
-                // 所有动作已完成
-                _uiState.update { 
-                    it.copy(
-                        actionStatus = ActionStatus.Completed(actions.size, actions.size)
-                    ) 
-                }
-                return@launch
-            }
-            
+            // 边界保护：nextIndex-1 必须是有效动作索引
+            if (nextIndex <= 0 || nextIndex > actions.size) return@launch
+
             val action = actions[nextIndex - 1]
-            
+
             val result = when (action) {
                 is AIDecisionEngine.Action.Click -> com.yanxing.agent.service.ActionExecutor.click(action.query)
                 is AIDecisionEngine.Action.LongPress -> com.yanxing.agent.service.ActionExecutor.longPress(action.query)
                 is AIDecisionEngine.Action.Swipe -> com.yanxing.agent.service.ActionExecutor.swipe(action.direction)
                 is AIDecisionEngine.Action.InputText -> com.yanxing.agent.service.ActionExecutor.inputText(action.query, action.text)
             }
-            
+
+            // 记录执行历史（供下一轮决策参考）
+            actionHistory.appendLine("${action.toDesc()} → ${if (result.success) "成功" else "失败"}：${result.message}")
+
             // 更新悬浮窗状态
             progressOverlay?.setActionModeEnabled(true)
             if (result.success) {
@@ -439,7 +501,7 @@ class ChatViewModel @Inject constructor(
             } else {
                 progressOverlay?.incrementFailed()
             }
-            
+
             // 批量写入操作日志（性能优化）
             viewModelScope.launch {
                 val packageName = uiState.value.lastScreenPackage.orEmpty()
@@ -458,7 +520,7 @@ class ChatViewModel @Inject constructor(
                         is AIDecisionEngine.Action.Swipe -> null
                     },
                     details = when (action) {
-                        is AIDecisionEngine.Action.Click, is AIDecisionEngine.Action.LongPress, 
+                        is AIDecisionEngine.Action.Click, is AIDecisionEngine.Action.LongPress,
                         is AIDecisionEngine.Action.Swipe -> result.message
                         is AIDecisionEngine.Action.InputText -> action.text
                     }.orEmpty(),
@@ -466,53 +528,110 @@ class ChatViewModel @Inject constructor(
                     errorMessage = if (!result.success) result.message else null,
                 )
             }
-            
+
             if (result.success && nextIndex < actions.size) {
                 // 继续下一个动作
-                _uiState.update { 
+                _uiState.update {
                     it.copy(
                         actionStatus = ActionStatus.PendingConfirm.Waiting(actions, nextIndex)
-                    ) 
+                    )
                 }
             } else if (result.success) {
-                // 完成
-                _uiState.update { 
-                    it.copy(
-                        actionStatus = ActionStatus.Completed(nextIndex, actions.size)
-                    ) 
-                }
+                // 本组动作全部执行完成 → 多轮决策：回传结果让 AI 根据新屏幕续判
+                continueDecision()
             } else {
                 // 失败，提示用户但继续询问下一个
-                _uiState.update { 
+                _uiState.update {
                     it.copy(
                         actionStatus = ActionStatus.PendingConfirm.Waiting(actions, nextIndex - 1),
                         error = "操作${action.toDesc()}失败，请重试"
-                    ) 
+                    )
                 }
             }
         }
     }
-    
+
     private fun executePendingActionSkipping(actions: List<AIDecisionEngine.Action>, skippedIndex: Int) {
         if (skippedIndex >= actions.size) {
-            // 全部跳过
-            val successCount = actions.filterIndexed { i, _ ->
-                // 统计已成功的动作（这里简单处理为成功 count）
-                true
-            }.count()
-            _uiState.update { 
-                it.copy(
-                    actionStatus = ActionStatus.Completed(successCount, actions.size)
-                ) 
-            }
+            // 全部跳过，任务结束
+            finishAction("用户跳过了所有动作，任务结束")
             return
         }
-        
-        _uiState.update { 
+
+        _uiState.update {
             it.copy(
                 actionStatus = ActionStatus.PendingConfirm.Waiting(actions, skippedIndex)
-            ) 
+            )
         }
+    }
+
+    /**
+     * 多轮决策：一组动作执行完后，读取新屏幕并回传 LLM，
+     * 由 AI 判断任务完成（done）或继续规划下一组动作。
+     */
+    private fun continueDecision() {
+        if (actionRound >= MAX_ACTION_ROUNDS) {
+            finishAction("已达最大决策轮次（$MAX_ACTION_ROUNDS），任务停止", isError = true)
+            return
+        }
+        val goal = actionGoal
+        _uiState.update { it.copy(actionStatus = ActionStatus.Thinking(actionRound)) }
+
+        viewModelScope.launch {
+            val screenText = extractScreenText()
+            val current = uiState.value
+            val systemPrompt = AIDecisionEngine.generateContinuationPrompt(
+                goal = goal,
+                currentScreen = screenText,
+                lastResult = actionHistory.toString().ifBlank { null },
+                round = actionRound,
+                maxRounds = MAX_ACTION_ROUNDS,
+            )
+            val request = ChatCompletionRequest(
+                model = current.model,
+                messages = listOf(systemPrompt),
+                stream = false,
+            )
+            val result = llmClient.complete(current.baseUrl, current.apiKey, request)
+            result.onSuccess { reply ->
+                val sequence = AIDecisionEngine.parseLLMResponse(reply)
+                when {
+                    sequence.done -> finishAction(sequence.reason ?: "任务完成")
+                    sequence.actions.isEmpty() -> finishAction(sequence.error ?: "任务完成")
+                    else -> {
+                        actionRound++
+                        _uiState.update {
+                            it.copy(actionStatus = ActionStatus.PendingConfirm.Waiting(sequence.actions, 0))
+                        }
+                    }
+                }
+            }.onFailure { error ->
+                finishAction("继续决策失败：${error.message ?: "未知错误"}", isError = true)
+            }
+        }
+    }
+
+    /** 结束行动任务：写入总结消息并清理上下文 */
+    private fun finishAction(message: String, isError: Boolean = false) {
+        val conversationId = currentConversationId.value
+        _uiState.update {
+            it.copy(
+                actionStatus = ActionStatus.Completed(0, 0),
+                error = if (isError) message else null,
+            )
+        }
+        viewModelScope.launch {
+            repository.appendMessage(conversationId, "assistant", message)
+        }
+        progressOverlay?.hide()
+        progressOverlay = null
+        resetActionContext()
+    }
+
+    private fun resetActionContext() {
+        actionGoal = ""
+        actionRound = 0
+        actionHistory.clear()
     }
 
     fun clearError() = _uiState.update { it.copy(error = null) }
@@ -577,21 +696,21 @@ class ChatViewModel @Inject constructor(
             // 某些设备可能没有该 Intent，忽略
         }
     }
-    
+
     /** 确保悬浮窗已初始化 */
     private fun ensureProgressOverlay() {
         if (progressOverlay == null) {
             progressOverlay = FloatingProgressOverlay(_context)
         }
     }
-    
+
     override fun onCleared() {
         super.onCleared()
         // 清理资源
         batchedLogWriter.shutdown()
         progressOverlay?.hide()
     }
-    
+
     /** 将 ChatMessage 转换为 API 请求的 ChatMessageDto，支持多模态 */
     private fun ChatMessage.toChatMessageDto(): ChatMessageDto {        val images = attachments.filter { it.type == "image" && it.base64 != null }
         return if (images.isNotEmpty()) {

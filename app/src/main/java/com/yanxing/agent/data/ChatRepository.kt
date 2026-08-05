@@ -95,7 +95,7 @@ class ChatRepository @Inject constructor(
     suspend fun deleteAllMemories() = memoryDao.deleteAll()
 
     // ===== 操作日志管理 =====
-    
+
     fun observeActionLogs(): Flow<List<ActionLogEntity>> =
         actionLogDao.observeAll().map { list -> list.sortedByDescending { it.timestamp } }
 
@@ -163,16 +163,17 @@ sealed class ActionStatus {
     data object Idle : ActionStatus()
     data object Readying : ActionStatus()
     data class Ready(val screenText: String) : ActionStatus()
+    data class Thinking(val round: Int) : ActionStatus() // AI 正在根据执行结果做下一轮决策
     data class Executing(
-        val current: Int, 
-        val total: Int, 
+        val current: Int,
+        val total: Int,
         val actionDesc: String? = null,
         val confirmed: Boolean = false, // 是否已确认执行当前动作
         val userApproved: Boolean = true, // 用户是否批准（true=允许，false=拒绝）
     ) : ActionStatus()
-    
+
     data class Completed(val successCount: Int, val totalCount: Int) : ActionStatus()
-    
+
     // 用于 Pending Actions 的中间状态
     sealed class PendingConfirm : ActionStatus() {
         data class Waiting(val actions: List<AIDecisionEngine.Action>, val index: Int) : PendingConfirm()
