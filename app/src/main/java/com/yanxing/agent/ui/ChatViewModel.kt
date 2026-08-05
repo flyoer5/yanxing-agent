@@ -29,6 +29,7 @@ import com.yanxing.agent.service.RootShell
 import com.yanxing.agent.service.RollbackController
 import com.yanxing.agent.service.ScreenReaderAccessibilityService
 import com.yanxing.agent.service.VoiceInputController
+import com.yanxing.agent.service.ActionExecutor
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
