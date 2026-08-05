@@ -20,6 +20,7 @@ import com.yanxing.agent.network.LlmClient
 import com.yanxing.agent.network.SearchResult
 import com.yanxing.agent.network.WebSearchClient
 import com.yanxing.agent.service.AIDecisionEngine
+import com.yanxing.agent.service.FloatingProgressOverlay
 import com.yanxing.agent.service.FloatingWindowService
 import com.yanxing.agent.service.RootShell
 import com.yanxing.agent.service.ScreenReaderAccessibilityService

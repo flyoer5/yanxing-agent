@@ -2,10 +2,10 @@ package com.yanxing.agent.service
 
 import android.content.Context
 import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.View
 import android.widget.TextView
-import androidx.cardview.widget.CardView
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,10 +14,17 @@ import kotlinx.coroutines.flow.asStateFlow
  * 悬浮窗实时进度显示
  * 显示执行状态、成功/失败计数、控制按钮
  */
-class FloatingProgressOverlay(context: Context) {
+class FloatingProgressOverlay(private val context: Context) {
     
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
     private var isVisible = false
+    private var currentView: View? = null
+    private var currentParams: android.view.WindowManager.LayoutParams? = null
+    private var progressTextView: TextView? = null
+    private var successCountTextView: TextView? = null
+    private var failedCountTextView: TextView? = null
+    private var currentTaskTextView: TextView? = null
+    private var controlButtonView: android.widget.Button? = null
     
     // 内部状态流
     private val _currentState = MutableStateFlow(CheckboxState())
@@ -61,7 +68,8 @@ class FloatingProgressOverlay(context: Context) {
     }
     
     /**
-     * 增加失败计数  
+     * 增加失败计数
+     */
     fun incrementFailed() {
         _currentState.value = _currentState.value.copy(failed = _currentState.value.failed + 1)
         updateUI()
@@ -107,8 +115,10 @@ class FloatingProgressOverlay(context: Context) {
      */
     private fun destroyView() {
         try {
-            if (isVisible && _currentView != null) {
-                windowManager.removeView(_currentView)
+            if (isVisible) {
+                currentView?.let { windowManager.removeView(it) }
+                currentView = null
+                currentParams = null
                 isVisible = false
             }
         } catch (e: Exception) {
@@ -123,21 +133,39 @@ class FloatingProgressOverlay(context: Context) {
         try {
             destroyView() // 先移除旧的
             
-            val cardView = CardView(context).apply {
-                layoutParams = android.view.ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-                ).also {
-                    it.width = 320
-                    it.height = 360
+            val cardView = android.widget.LinearLayout(context).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                setPadding(16, 12, 16, 12)
+                background = GradientDrawable().apply {
+                    setColor(android.graphics.Color.WHITE)
+                    cornerRadius = 12f
                 }
-                radius = 12f
-                setCardBackgroundColor(context.getColor(android.R.color.white))
                 elevation = 8f
             }
             
             val layout = View(context).apply {
                 setBackgroundColor(context.getColor(android.R.color.transparent))
+            }
+            val dragStart = FloatArray(2)
+            val windowStart = IntArray(2)
+            cardView.setOnTouchListener { _, event ->
+                val params = currentParams ?: return@setOnTouchListener false
+                when (event.actionMasked) {
+                    android.view.MotionEvent.ACTION_DOWN -> {
+                        dragStart[0] = event.rawX
+                        dragStart[1] = event.rawY
+                        windowStart[0] = params.x
+                        windowStart[1] = params.y
+                        true
+                    }
+                    android.view.MotionEvent.ACTION_MOVE -> {
+                        params.x = windowStart[0] + (dragStart[0] - event.rawX).toInt()
+                        params.y = windowStart[1] + (event.rawY - dragStart[1]).toInt()
+                        windowManager.updateViewLayout(cardView, params)
+                        true
+                    }
+                    else -> false
+                }
             }
             
             val titleText = TextView(context).apply {
@@ -156,51 +184,51 @@ class FloatingProgressOverlay(context: Context) {
             }
             
             val progressText = TextView(context).apply {
-                id = View.generateViewId()
                 text = "0 / 0"
                 textSize = 18f
-                setTextColor(context.getColor(R.color.primary))
-                setPadding(16, 4, 16, 4)
+                setTextColor(android.graphics.Color.DKGRAY)
+                setPadding(0, 4, 0, 4)
                 setBold()
             }
+            progressTextView = progressText
             
             val statsContainer = View(context).apply {
                 setBackgroundColor(context.getColor(android.R.color.transparent))
             }
             
             val successCountText = TextView(context).apply {
-                id = View.generateViewId()
                 text = "✓ 成功：0"
                 textSize = 14f
-                setTextColor(context.getColor(android.R.color.holo_green_light))
-                setPadding(16, 2, 16, 2)
+                setTextColor(context.getColor(android.R.color.holo_green_dark))
+                setPadding(0, 2, 0, 2)
             }
+            successCountTextView = successCountText
             
             val failedCountText = TextView(context).apply {
-                id = View.generateViewId()
                 text = "✗ 失败：0"
                 textSize = 14f
-                setTextColor(context.getColor(android.R.color.holo_red_light))
-                setPadding(16, 2, 16, 2)
+                setTextColor(context.getColor(android.R.color.holo_red_dark))
+                setPadding(0, 2, 0, 2)
             }
+            failedCountTextView = failedCountText
             
             val currentTaskText = TextView(context).apply {
-                id = View.generateViewId()
                 text = "等待执行..."
                 textSize = 13f
                 setTextColor(context.getColor(android.R.color.black))
-                setPadding(16, 4, 16, 8)
+                setPadding(0, 4, 0, 8)
             }
+            currentTaskTextView = currentTaskText
             
             val controlButton = android.widget.Button(context).apply {
-                id = View.generateViewId()
                 text = "暂停"
                 textSize = 14f
                 setTextColor(context.getColor(android.R.color.white))
-                setBackgroundColor(context.getColor(android.R.color.holo_blue_light))
+                setBackgroundColor(context.getColor(android.R.color.holo_blue_dark))
                 setPadding(16, 8, 16, 8)
-                visibility = View.GONE // 初始隐藏
+                visibility = View.GONE
             }
+            controlButtonView = controlButton
             
             controlButton.setOnClickListener {
                 togglePause()
@@ -222,30 +250,22 @@ class FloatingProgressOverlay(context: Context) {
                 false
             }
             
-            // 添加布局到卡片
-            val contentLayout = android.widget.LinearLayout(context).apply {
-                orientation = android.widget.LinearLayout.VERTICAL
-                setPadding(0, 0, 0, 0)
-            }
-            
-            contentLayout.addView(titleText)
-            contentLayout.addView(statusText)
-            contentLayout.addView(progressText)
-            contentLayout.addView(statsContainer)
-            contentLayout.addView(successCountText)
-            contentLayout.addView(failedCountText)
-            contentLayout.addView(currentTaskText)
-            contentLayout.addView(controlButton)
-            
-            cardView.addView(contentLayout)
-            _currentView = cardView
+            cardView.addView(titleText)
+            cardView.addView(statusText)
+            cardView.addView(progressText)
+            cardView.addView(statsContainer)
+            cardView.addView(successCountText)
+            cardView.addView(failedCountText)
+            cardView.addView(currentTaskText)
+            cardView.addView(controlButton)
+            currentView = cardView
             
             // 添加到 Window
             val params = android.view.WindowManager.LayoutParams().apply {
-                type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-                flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                        WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                type = android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                flags = android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                        android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
                 format = PixelFormat.TRANSPARENT
                 width = 320
                 height = 360
@@ -254,6 +274,7 @@ class FloatingProgressOverlay(context: Context) {
                 y = 100
             }
             
+            currentParams = params
             windowManager.addView(cardView, params)
             isVisible = true
             
@@ -268,32 +289,18 @@ class FloatingProgressOverlay(context: Context) {
     private fun updateUI() {
         val state = _currentState.value
         
-        // 查找并更新所有 TextView
-        _currentView?.let { view ->
-            view.findViewById<TextView>(R.id.currentStep)?.text = state.currentStep
-            view.findViewById<TextView>(R.id.progressText)?.text = 
-                "进度：${state.success + state.failed} / ${state.total}"
-            view.findViewById<TextView>(R.id.successCountText)?.text = 
-                "✓ 成功：${state.success}"
-            view.findViewById<TextView>(R.id.failedCountText)?.text = 
-                "✗ 失败：${state.failed}"
-            view.findViewById<View>(R.id.controlButton)?.visibility = 
-                if (state.isPaused) View.VISIBLE else View.GONE
-        }
+        currentTaskTextView?.text = state.currentStep.ifBlank { "等待执行..." }
+        progressTextView?.text = "进度：${state.success + state.failed} / ${state.total}"
+        successCountTextView?.text = "✓ 成功：${state.success}"
+        failedCountTextView?.text = "✗ 失败：${state.failed}"
+        controlButtonView?.visibility = if (state.isPaused) View.VISIBLE else View.GONE
     }
     
     /**
      * 更新控制按钮文字
      */
     private fun updateControlButtonText() {
-        _currentView?.let { view ->
-            view.findViewById<android.widget.Button>(R.id.controlButton)?.text = 
-                if (_currentState.value.isPaused) "继续" else "暂停"
-        }
-    }
-    
-    companion object {
-        @Volatile private var _currentView: View? = null
+        controlButtonView?.text = if (_currentState.value.isPaused) "继续" else "暂停"
     }
 }
 

@@ -80,6 +80,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.yanxing.agent.data.Attachment
+import com.yanxing.agent.data.ActionLogEntity
 import com.yanxing.agent.data.ChatMessage
 import com.yanxing.agent.data.Conversation
 import com.yanxing.agent.data.ConversationGroup
@@ -1136,7 +1137,7 @@ private fun ActionLogScreen(
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text("操作日志", style = MaterialTheme.typography.headlineSmall)
-                Text("记录"替我行动”的操作历史", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("记录‘替我行动’的操作历史", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             TextButton(onClick = onClearAll, enabled = logs.isNotEmpty()) { Text("清空") }
         }
@@ -1212,7 +1213,7 @@ private fun ActionLogItem(log: ActionLogEntity) {
                 Box(
                     modifier = Modifier.padding(horizontal = 6.dp).clip(RoundedCornerShape(4.dp))
                         .background(when (log.status) {
-                            "success" -> MaterialTheme.colorScheme.successContainer
+                            "success" -> MaterialTheme.colorScheme.secondaryContainer
                             "failed" -> MaterialTheme.colorScheme.errorContainer
                             "running" -> MaterialTheme.colorScheme.primaryContainer
                             else -> MaterialTheme.colorScheme.surfaceVariant
@@ -1227,7 +1228,7 @@ private fun ActionLogItem(log: ActionLogEntity) {
                         },
                         style = MaterialTheme.typography.labelSmall,
                         color = when (log.status) {
-                            "success" -> MaterialTheme.colorScheme.onSuccessContainer
+                            "success" -> MaterialTheme.colorScheme.onSecondaryContainer
                             "failed" -> MaterialTheme.colorScheme.onErrorContainer
                             "running" -> MaterialTheme.colorScheme.onPrimaryContainer
                             else -> MaterialTheme.colorScheme.onSurfaceVariant

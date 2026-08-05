@@ -140,7 +140,7 @@ class BatchedLogWriter(
             } catch (e: Exception) {
                 e.printStackTrace()
                 // 失败时放回队列重试
-                batch.forEach { logQueue.addFirst(it) }
+                batch.forEach { logQueue.add(it) }
             }
             
             _bufferSize.value = logQueue.size
