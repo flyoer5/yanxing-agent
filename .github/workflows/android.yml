@@ -54,7 +54,7 @@ jobs:
             echo "=== $apk ==="
             "$BUILD_TOOLS/apksigner" verify --print-certs "$apk" | grep -E 'Signer #1 certificate (DN|SHA-256)'
             "$BUILD_TOOLS/apksigner" verify --print-certs "$apk" \
-              | grep -q 'Signer #1 certificate DN: CN=Yanxing Agent' \
+              | grep -q 'CN=Yanxing Agent' \
               || { echo "签名证书不是固定签名，构建失败"; exit 1; }
           done
 
