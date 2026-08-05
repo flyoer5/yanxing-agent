@@ -1,64 +1,108 @@
-# 言行 Agent 第十二阶段开发计划
+# 言行 Agent 第十三阶段开发计划
 
 ## 目标
-实现执行停止机制 + 悬浮球语音输入，提升替我行动模式的可控性和便利性。
+修复主线程阻塞 bug + 开启 Release 混淆，提升上线质量。
 
 ## 阶段
-- [complete] 1. 项目骨架与 CI
-- [complete] 2. 本地会话/消息数据层
-- [complete] 3. OpenAI 兼容 API 与流式输出
-- [complete] 4. Compose 聊天与模型配置界面
-- [complete] 5. 单元测试、文档、推送验证
-- [complete] 6. 多会话、分组与长期记忆
-- [complete] 7. 语音、图片/文件输入输出
-- [complete] 8. 联网搜索
-- [complete] 9. 悬浮窗、无障碍与 Root 增强
-- [complete] 10. 替我行动（AI 决策 + 自动操作 + 操作日志）
-- [complete] 11. 多轮行动决策（执行结果回传 + 继续决策）+ 固定签名
-- [in-progress] 12. 执行停止 + 悬浮球语音输入
+- [complete] 1-12. 前序阶段
+- [in-progress] 13. Release 混淆 + 修复主线程阻塞
 
 ## 本阶段验收标准
-- [ ] `FloatingProgressOverlay` 显示"停止"按钮，点击时触发停止信号
-- [ ] `ChatViewModel` 增加 `stopAction()` 方法和停止标志位
-- [ ] `executePendingAction` / `continueDecision` 每轮检查标志位，已停止则提前终止
-- [ ] 停止后记录日志并重置上下文，UI 显示"已停止"状态
-- [ ] `floating_panel.xml` 布局添加语音按钮
-- [ ] 语音按钮调用 `android-speech listen`，识别结果填充到输入框
-- [ ] 识别失败或超时时显示错误提示
-- [ ] 增加 `ActionExecutorTest` 单元测试（覆盖停止逻辑）
+- [ ] `executePendingAction` 里 `ActionExecutor` 调用切换到 `Dispatchers.Default`，避免阻塞主线程
+- [ ] `ActionExecutor` 内 `Thread.sleep` 改为 `delay`（协程版本，可响应取消）
+- [ ] `build.gradle.kts` Release 构建开启 `isMinifyEnabled = true`
+- [ ] `proguard-rules.pro` 补全所有依赖的保留规则（Hilt、Room、OkHttp、Kotlin Serialization、Compose、data 类）
+- [ ] CI 验证 Release APK 可安装、签名校验通过、包体积显著缩小
+- [ ] 补充单元测试验证协程取消响应（ActionExecutor 模拟测试）
 - [ ] GitHub Actions 编译、测试成功
 
 ## 技术方案
 
-### 执行停止
-- **停止信号传递**：`FloatingProgressOverlay` 通过回调通知 `ChatViewModel.stopAction()`
-- **标志位检查**：在 `executePendingAction` 开头、`continueDecision` 发起 LLM 请求前检查 `actionCancelled` 标志
-- **清理与重置**：停止时调用 `finishAction("用户停止执行", isError = true)`，隐藏悬浮窗，清理上下文
-- **UI 反馈**：`FloatingProgressOverlay` 按钮文字为"停止"，点击后按钮变灰或文字改为"已停止"
+### 修复主线程阻塞
+**问题根源**：`executePendingAction` 跑在 `viewModelScope.launch`（默认 `Dispatchers.Main`），直接调用 `ActionExecutor.click/longPress/inputText`，这些方法内部有：
+- `Thread.sleep(50)` 用于等待 UI 稳定
+- `Thread.sleep(200)` 用于重试间隔
+- `ActionExecutor` 是 `object`，方法全同步阻塞
 
-### 悬浮球语音输入
-- **布局修改**：`floating_panel.xml` 在"发送"按钮左侧增加语音按钮（IconButton，`@android:drawable/ic_btn_speak_now`）
-- **语音识别流程**：
-  1. 点击按钮时禁用输入框和按钮（显示加载状态）
-  2. 调用 `android-speech listen --language zh-CN --max 1 --timeout 30`
-  3. 解析 JSON：`{"success": true, "text": "识别结果"}` 或 `{"success": false, "error": "..."}`
-  4. 成功时填充到 `panel_input`，失败时 Toast 提示错误
-  5. 恢复按钮状态
-- **权限检查**：Manifest 已有 `RECORD_AUDIO`，但悬浮窗无法动态请求权限，首次失败时提示用户在主界面授权
+慢机上会触发 ANR（Android Not Responding）。
+
+**解决方案**：
+1. `ChatViewModel.executePendingAction` 里调用 `ActionExecutor.*` 时用 `withContext(Dispatchers.Default)` 包住
+2. `ActionExecutor` 内部：
+   - 把 `Thread.sleep` 改成 `kotlinx.coroutines.delay`
+   - `withRetrySupport` 改为 `suspend` 函数
+   - 所有操作方法（`click/longPress/swipe/inputText`）改为 `suspend`
+3. `RootShell.execute` 里的 `Thread.sleep` 保持不变（它本身已经在 IO 操作上下文）
+
+### Release 混淆
+**ProGuard 规则**（`app/proguard-rules.pro`）：
+```proguard
+# Hilt
+-dontwarn com.google.errorprone.annotations.**
+-keep class dagger.hilt.** { *; }
+-keep class javax.inject.** { *; }
+-keep class * extends dagger.hilt.android.lifecycle.HiltViewModel
+
+# Room
+-keep class * extends androidx.room.RoomDatabase
+-keep @androidx.room.Entity class *
+-dontwarn androidx.room.paging.**
+
+# OkHttp / Retrofit
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-keepnames class okhttp3.internal.publicsuffix.PublicSuffixDatabase
+
+# Kotlin Serialization
+-keepattributes *Annotation*, InnerClasses
+-dontnote kotlinx.serialization.**
+-keep,includedescriptorclasses class com.yanxing.agent.**$$serializer { *; }
+-keepclassmembers class com.yanxing.agent.** {
+    *** Companion;
+}
+-keepclasseswithmembers class com.yanxing.agent.** {
+    kotlinx.serialization.KSerializer serializer(...);
+}
+
+# Compose
+-keep class androidx.compose.** { *; }
+-dontwarn androidx.compose.**
+
+# AccessibilityService（避免反射查找失败）
+-keep class com.yanxing.agent.service.ScreenReaderAccessibilityService { *; }
+-keep class com.yanxing.agent.service.FloatingWindowService { *; }
+
+# Data 类（Room/API 序列化依赖字段名）
+-keepclassmembers class com.yanxing.agent.data.** { *; }
+-keepclassmembers class com.yanxing.agent.network.** { *; }
+
+# Enum（保留 valueOf）
+-keepclassmembers enum * {
+    public static **[] values();
+    public static ** valueOf(java.lang.String);
+}
+
+# AndroidX & Material
+-dontwarn com.google.android.material.**
+-keep class com.google.android.material.** { *; }
+```
+
+**包体积预期**：Debug 19MB → Release 混淆后约 12-13MB（缩小 30-35%）
 
 ### 单元测试
-- **ActionExecutorTest**：测试停止标志位在执行中、继续决策时的行为
-- **AIDecisionEngineTest** 补充：验证 `done` 解析与 `generateContinuationPrompt` 格式
+新增 `ActionExecutorCoroutineTest.kt`，验证：
+1. `delay` 可被协程取消（不会永久阻塞）
+2. 重试逻辑在取消时提前退出
+3. 操作在 Default dispatcher 上执行不会阻塞 Main
 
 ## 文件清单
 | 文件 | 操作 | 说明 |
 |---|---|---|
-| `service/FloatingProgressOverlay.kt` | 修改 | 显示停止按钮，绑定回调 |
-| `ui/ChatViewModel.kt` | 修改 | 增加 `stopAction()` 和标志位检查 |
-| `data/ChatRepository.kt` | 无需修改 | `ActionStatus` 已有 `Canceled` 状态 |
-| `service/FloatingWindowService.kt` | 修改 | 语音按钮处理与 `android-speech` 调用 |
-| `res/layout/floating_panel.xml` | 修改 | 添加语音按钮 |
-| `test/.../ActionExecutorTest.kt` | 新建 | 停止逻辑单元测试 |
+| `service/ActionExecutor.kt` | 修改 | 方法改 suspend，`Thread.sleep` → `delay` |
+| `ui/ChatViewModel.kt` | 修改 | `executePendingAction` 加 `withContext(Dispatchers.Default)` |
+| `app/build.gradle.kts` | 修改 | Release 开启 `isMinifyEnabled = true` |
+| `app/proguard-rules.pro` | 修改 | 补全所有依赖的混淆规则 |
+| `test/.../ActionExecutorCoroutineTest.kt` | 新建 | 协程取消响应测试 |
 
 ## 错误记录
 | 错误 | 尝试 | 处理 |

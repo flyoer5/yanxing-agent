@@ -30,6 +30,7 @@ import com.yanxing.agent.service.ScreenReaderAccessibilityService
 import com.yanxing.agent.service.VoiceInputController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -551,11 +552,14 @@ class ChatViewModel @Inject constructor(
 
             val action = actions[nextIndex - 1]
 
-            val result = when (action) {
-                is AIDecisionEngine.Action.Click -> com.yanxing.agent.service.ActionExecutor.click(action.query)
-                is AIDecisionEngine.Action.LongPress -> com.yanxing.agent.service.ActionExecutor.longPress(action.query)
-                is AIDecisionEngine.Action.Swipe -> com.yanxing.agent.service.ActionExecutor.swipe(action.direction)
-                is AIDecisionEngine.Action.InputText -> com.yanxing.agent.service.ActionExecutor.inputText(action.query, action.text)
+            // 在 Default dispatcher 上执行无障碍操作（避免阻塞主线程）
+            val result = withContext(Dispatchers.Default) {
+                when (action) {
+                    is AIDecisionEngine.Action.Click -> com.yanxing.agent.service.ActionExecutor.click(action.query)
+                    is AIDecisionEngine.Action.LongPress -> com.yanxing.agent.service.ActionExecutor.longPress(action.query)
+                    is AIDecisionEngine.Action.Swipe -> com.yanxing.agent.service.ActionExecutor.swipe(action.direction)
+                    is AIDecisionEngine.Action.InputText -> com.yanxing.agent.service.ActionExecutor.inputText(action.query, action.text)
+                }
             }
 
             // 记录执行历史（供下一轮决策参考）

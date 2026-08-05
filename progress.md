@@ -34,7 +34,14 @@
 
 ## 2026-08-05（第十二阶段）
 - **执行停止机制**：`ActionRunController` 独立控制轮次与停止标志；`FloatingProgressOverlay` 显示停止按钮并通知 ViewModel；所有执行/决策入口在关键点检查 `isCancelled` 提前终止；停止记为 `cancelled` 状态并写入日志。
-- **悬浮球语音输入**：`VoiceInputController` 封装 `SpeechRecognizer`；悬浮面板增加语音按钮，识别结果填入输入框；聊天界面麦克风按钮接通真实识别（修复既存空壳缺陷）。
+- **悬浮球语音输入**：`VoiceInputController` 封装 `SpeechRecognizer`；悬浮面板增加语音按钮，识别结果填入输入框；聊天界面麦克风按钮接通真实识别（修复第七阶段遗留的空壳缺陷）。
 - **UI 改进**：Thinking/Executing/PendingConfirm 三个状态均显示停止按钮；`voiceInputMode` 从被动标记改为主动识别流程；进度计数跨轮重置，避免"3 / 2"错乱。
 - **权限补全**：Manifest 补齐 `RECORD_AUDIO` 权限与语音识别服务 query。
 - **单元测试**：新增 `ActionRunControllerTest`（10 个测试用例覆盖启动/停止/轮次推进/边界条件）。
+
+## 2026-08-05（第十三阶段）
+- **主线程阻塞修复**：`ActionExecutor.click/longPress/inputText` 改成协程 `suspend` 函数，`Thread.sleep` → `kotlinx.coroutines.delay`；`ChatViewModel.executePendingAction` 调用时加 `withContext(Dispatchers.Default)`，避免阻塞主线程导致 ANR。
+- **Release 混淆开启**：`build.gradle.kts` Release 构建设 `isMinifyEnabled = true` + `isShrinkResources = true`；`proguard-rules.pro` 补全 Hilt、Room、OkHttp、Kotlin Serialization、Compose、AccessibilityService、data 类的保留规则。
+- **协程取消响应验证**：新增 `ActionExecutorCoroutineTest`（5 个测试用例），确保 `delay` 可被取消、重试逻辑在取消时提前退出、成功操作不受影响。
+
+预计效果：Debug 19MB → Release 混淆后约 12-13MB（缩小 30-35%）；ANR 风险显著降低。

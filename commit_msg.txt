@@ -1,29 +1,19 @@
-feat: 替我行动执行停止 + 悬浮球/聊天语音输入（第十二阶段）
+fix: 主线程阻塞 + Release 混淆开启（第十三阶段）
 
-【执行停止机制】
-- 新增 ActionRunController：独立管理轮次推进与停止标志，可单测
-- FloatingProgressOverlay 显示"停止执行"按钮，点击后通知 ViewModel
-- executePendingAction/continueDecision 在每个关键点检查 isCancelled 提前终止
-- UI 在 Thinking/Executing/PendingConfirm 状态显示停止按钮
-- 停止后记为 cancelled 状态并写入日志，保留已执行动作摘要
+【主线程阻塞修复】
+- ActionExecutor.click/longPress/inputText/textInput 改为协程 suspend 函数
+- Thread.sleep(50) / RETRY_DELAY_MS → kotlinx.coroutines.delay（可被取消）
+- withRetrySupport 和 withService 也改 suspend，保持链式调用一致
+- ChatViewModel.executePendingAction 调用时加 withContext(Dispatchers.Default)，避免阻塞主线程导致 ANR
 
-【语音输入】
-- 新增 VoiceInputController：封装 SpeechRecognizer，返回识别结果或错误
-- 悬浮面板（floating_panel.xml）增加语音按钮，识别结果填入输入框
-- 聊天界面麦克风按钮接通真实识别（修复第七阶段遗留的空壳实现）
-- Manifest 补齐 RECORD_AUDIO 权限与语音识别服务 query 声明
-- 悬浮窗语音失败时提示用户到主界面授权（Service 无 Activity 上下文）
-
-【改进与修复】
-- 进度计数跨轮重置，避免显示"3 / 2"之类错乱
-- voiceInputMode 从被动标记改为主动识别流程（startVoiceInput/cancelVoiceInput）
-- BatchedLogWriter 状态映射补充 PendingConfirm.Canceled → "cancelled"
-- 移除 FloatingProgressOverlay 无用字段与 TODO 代码（isPaused/layout/statsContainer）
+【Release 混淆】
+- build.gradle.kts Release 构建开启 isMinifyEnabled=true + isShrinkResources=true
+- proguard-rules.pro 补全所有依赖规则：Hilt、Room、OkHttp、Kotlin Serialization、Compose、AccessibilityService、data/Network DTOs
+- 预计包体积缩小 30-35%（Debug 19MB → Release 12-13MB）
 
 【单元测试】
-- 新增 ActionRunControllerTest：10 个测试覆盖启动/停止/轮次推进/边界条件
+- 新增 ActionExecutorCoroutineTest：验证 delay 可被取消、重试逻辑在取消时提前退出、成功操作不受影响（5 个测试用例）
 
 【文件清单】
-新增：ActionRunController.kt, VoiceInputController.kt, ActionRunControllerTest.kt
-修改：ChatViewModel.kt, FloatingProgressOverlay.kt, FloatingWindowService.kt,
-      AgentApp.kt, floating_panel.xml, AndroidManifest.xml, BatchedLogWriter.kt
+新增：ActionExecutorCoroutineTest.kt
+修改：ActionExecutor.kt, ChatViewModel.kt, app/build.gradle.kts, app/proguard-rules.pro, progress.md
