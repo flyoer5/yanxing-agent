@@ -44,8 +44,19 @@ jobs:
           echo "YANXING_KEY_PASSWORD=${{ secrets.YANXING_KEY_PASSWORD }}" >> "$GITHUB_ENV"
           echo "YANXING_KEY_ALIAS=${{ secrets.YANXING_KEY_ALIAS }}" >> "$GITHUB_ENV"
 
-      - name: Run unit tests and assemble Debug APK
-        run: gradle --no-daemon testDebugUnitTest assembleDebug
+      - name: Run unit tests and assemble APKs
+        run: gradle --no-daemon testDebugUnitTest assembleDebug assembleRelease
+
+      - name: Verify APK signing certificate
+        run: |
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/35.0.0)
+          for apk in app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/release/app-release.apk; do
+            echo "=== $apk ==="
+            "$BUILD_TOOLS/apksigner" verify --print-certs "$apk" | grep -E 'Signer #1 certificate (DN|SHA-256)'
+            "$BUILD_TOOLS/apksigner" verify --print-certs "$apk" \
+              | grep -q 'Signer #1 certificate DN: CN=Yanxing Agent' \
+              || { echo "签名证书不是固定签名，构建失败"; exit 1; }
+          done
 
       - name: Upload Debug APK
         if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
@@ -53,4 +64,12 @@ jobs:
         with:
           name: yanxing-agent-debug
           path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Upload Release APK
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+        uses: actions/upload-artifact@v4
+        with:
+          name: yanxing-agent-release
+          path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error

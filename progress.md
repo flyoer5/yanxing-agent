@@ -25,3 +25,8 @@
 - 修复本轮 CI 编译问题：悬浮进度组件语法/CardView 依赖、R 资源引用、Material3 颜色、日志队列、ActionExecutor 根节点与回调、缺失导入、Hilt DAO 绑定（ad398e0、05bda92、844e912、240bf6d）。
 - 最终 CI：`240bf6d` GitHub Actions success，Debug APK 上传成功。
 - 真机安装验证通过（悬浮窗、无障碍、替我行动、操作日志、执行进度悬浮窗）。
+
+## 2026-08-05（续）
+- 第十一阶段完成：多轮行动决策（最多 5 轮）、任务结果回传 LLM、Thinking 状态 UI、7 个单元测试，CI success（7e7ccd8）。
+- 修复替我行动主链路未接线缺陷（executeAction 为死代码）和单动作执行顺序缺陷。
+- 固定 APK 签名：证书 CN=Yanxing Agent，有效期 2053 年，CI success（058bf42），覆盖安装验证通过。

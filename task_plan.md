@@ -12,18 +12,20 @@
 - [complete] 6. 多会话、分组与长期记忆
 - [complete] 7. 语音、图片/文件输入输出
 - [complete] 8. 联网搜索
-- [complete] 8. 联网搜索
 - [complete] 9. 悬浮窗、无障碍与 Root 增强
 - [complete] 10. 替我行动（AI 决策 + 自动操作 + 操作日志）
-- [in_progress] 11. 多轮行动决策（执行结果回传 + 继续决策）
+- [complete] 11. 多轮行动决策（执行结果回传 + 继续决策）+ 固定签名
 
 ## 本阶段验收标准
-- [ ] 动作组执行完后自动读取新屏幕并回传 LLM
-- [ ] LLM 返回 `done` 或新动作组，未完成则进入下一轮确认
-- [ ] 达到轮次上限（5 轮）自动结束，不无限循环
-- [ ] UI 显示"AI 正在分析第 N 轮"状态
-- [ ] AIDecisionEngine 单元测试覆盖 done/actions 解析
-- [ ] GitHub Actions 编译、测试成功
+- [x] 动作组执行完后自动读取新屏幕并回传 LLM
+- [x] LLM 返回 `done` 或新动作组，未完成则进入下一轮确认
+- [x] 达到轮次上限（5 轮）自动结束，不无限循环
+- [x] UI 显示"AI 正在分析第 N 轮"状态
+- [x] AIDecisionEngine 单元测试覆盖 done/actions 解析
+- [x] 修复"替我行动"主链路未接线（executeAction 为死代码）
+- [x] 修复单动作任务被跳过执行的顺序缺陷
+- [x] APK 使用固定签名，构建产物可覆盖安装
+- [x] GitHub Actions 编译、测试成功
 
 ## 技术方案
 
