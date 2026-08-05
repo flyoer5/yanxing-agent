@@ -38,8 +38,8 @@ jobs:
         env:
           KEYSTORE_BASE64: ${{ secrets.YANXING_KEYSTORE_BASE64 }}
         run: |
-          echo "$KEYSTORE_BASE64" | base64 -d > app/yanxing-release.p12
-          echo "YANXING_KEYSTORE_FILE=app/yanxing-release.p12" >> "$GITHUB_ENV"
+          echo "$KEYSTORE_BASE64" | base64 -d > $GITHUB_WORKSPACE/yanxing-release.p12
+          echo "YANXING_KEYSTORE_FILE=$GITHUB_WORKSPACE/yanxing-release.p12" >> "$GITHUB_ENV"
           echo "YANXING_KEYSTORE_PASSWORD=${{ secrets.YANXING_KEYSTORE_PASSWORD }}" >> "$GITHUB_ENV"
           echo "YANXING_KEY_PASSWORD=${{ secrets.YANXING_KEY_PASSWORD }}" >> "$GITHUB_ENV"
           echo "YANXING_KEY_ALIAS=${{ secrets.YANXING_KEY_ALIAS }}" >> "$GITHUB_ENV"
