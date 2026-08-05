@@ -1,7 +1,5 @@
 package com.yanxing.agent.ui
 
-package com.yanxing.agent.ui
-
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
