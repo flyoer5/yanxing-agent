@@ -62,6 +62,8 @@ class ChatViewModel @Inject constructor(
 
     // ===== 语音输入 =====
     private val voiceInput = VoiceInputController(_context)
+    private val rootShell = RootShell
+
 
     // ===== 多轮行动决策上下文 =====
     private var actionGoal: String = ""        // 当前任务目标
@@ -504,6 +506,39 @@ class ChatViewModel @Inject constructor(
         executedActions.clear()
     }
 
+    // ===== Root 增强命令入口 =====
+
+    /** 读取电池百分比 */
+    fun readBatteryLevel(): String? {
+        if (!rootShell.isRootAvailable()) return null
+        val level = runCatching { rootShell.batteryLevel() }.getOrNull() ?: return null
+        return "${level}%"
+    }
+
+    /** 读取当前屏幕亮度 */
+    fun readScreenBrightness(): Int? {
+        if (!rootShell.isRootAvailable()) return null
+        return runCatching { rootShell.screenBrightness() }.getOrNull()
+    }
+
+    /** 设置屏幕亮度 */
+    fun setScreenBrightness(value: Int): Boolean {
+        if (!rootShell.isRootAvailable()) return false
+        return runCatching { rootShell.setScreenBrightness(value) }.getOrDefault(false)
+    }
+
+    /** 点亮屏幕 */
+    fun wakeScreen(): Boolean {
+        if (!rootShell.isRootAvailable()) return false
+        return runCatching { rootShell.wakeScreen() }.getOrDefault(false)
+    }
+
+    /** 获取设备信息 */
+    fun getDeviceInfo(): String? {
+        if (!rootShell.isRootAvailable()) return null
+        return runCatching { rootShell.deviceInfo() }.getOrNull()?.replace("&&", "\n")
+    }
+
     /**
      * 撤销上一个成功执行的行动。
      * 从栈中弹出最近动作 → RollbackController 生成逆操作 → 确认执行 → 记 rollback 日志
@@ -840,6 +875,12 @@ class ChatViewModel @Inject constructor(
                 floatingWindowEnabled = settings.floatingWindowEnabled,
                 accessibilityEnabled = isAccessibilityEnabled(),
                 rootAvailable = RootShell.isRootAvailable(),
+                batteryLevel = if (RootShell.isRootAvailable()) {
+                    runCatching { 
+                        val level = RootShell.batteryLevel() 
+                        if (level != null) "${level}%" else ""
+                    }.getOrNull().orEmpty()
+                } else "",
             )
         }
     }
@@ -880,6 +921,7 @@ class ChatViewModel @Inject constructor(
         // 清理资源
         batchedLogWriter.shutdown()
         voiceInput.release()
+        RootShell.resetCache() // 清理 root 可用性缓存
         progressOverlay?.hide()
         progressOverlay = null
     }
@@ -916,6 +958,7 @@ data class ChatUiState(
     val searchApiKey: String = "",
     val floatingWindowEnabled: Boolean = false,
     val rootAvailable: Boolean? = null,
+    val batteryLevel: String = "", // 电池百分比（Root 增强）
     val accessibilityEnabled: Boolean = false,
     val actionModeEnabled: Boolean = false, // 替我行动模式开关
     val actionStatus: ActionStatus = ActionStatus.Idle, // 当前行动状态

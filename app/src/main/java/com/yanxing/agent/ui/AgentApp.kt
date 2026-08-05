@@ -892,6 +892,20 @@ private fun SystemFeaturesFields(
                 else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        // 电池电量（需 Root）
+        if (root && state.batteryLevel.isNotEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("当前电量", modifier = Modifier.weight(1f))
+                Text(
+                    text = state.batteryLevel,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
     }
 }
 

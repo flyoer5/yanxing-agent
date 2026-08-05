@@ -1,77 +1,89 @@
-# 言行 Agent 第十四阶段开发计划
+# 言行 Agent 第十五阶段开发计划
 
 ## 目标
-实现执行回滚（v1.0）：撤销上一个动作，支持点击返回、输入清空、滑动反向。
+Root 增强命令扩展：支持电量读取、屏幕亮度调节等系统控制命令。
 
 ## 阶段
-- [complete] 1-13. 前序阶段
-- [in-progress] 14. 执行回滚（v1.0）—— 撤销上一个动作
+- [complete] 1-14. 前序阶段
+- [in-progress] 15. Root 增强命令扩展（电池/亮度/唤醒）
 
 ## 本阶段验收标准
-- [ ] `ActionExecutor` 新增 `back()`（全局返回）、`clearText(query)`（清空输入框）方法
-- [ ] `RollbackController` 根据最近成功日志生成逆操作建议
-  - `click` → `back()`
-  - `input_text` → `clearText(targetElement)`
-  - `swipe` → 反方向 swipe
-- [ ] `ChatViewModel` 维护已执行动作栈 `executedActions`，提供 `undoLastAction()` 入口
-- [ ] UI 显示：悬浮窗和执行状态区加「撤销」按钮，确认后执行逆操作并记日志
-- [ ] 逆操作记为 `actionType="rollback"`，结果写进会话摘要
+- [ ] `RootShell` 新增 `batteryLevel()` → 返回电池百分比 (Int) 或 null
+- [ ] `RootShell` 新增 `screenBrightness()` → 读取当前亮度值 (0..255)，`setScreenBrightness(value: Int)` → 设置亮度
+- [ ] `RootShell` 新增 `wakeScreen()` → 点亮屏幕
+- [ ] `RootShell` 新增 `goBackOrCloseApp()` → 尝试 back() + finishActivity()
+- [ ] `ActionExecutor` 补充 `finishActivity()` 方法（可选）
+- [ ] UI：设置页增加「Root 增强」区域，展示可用命令与使用说明
+- [ ] 单元测试：模拟 root 环境验证命令输出解析正确性
 - [ ] GitHub Actions 编译、测试成功
 
 ## 技术方案
 
-### RollbackController
-纯逻辑类，不依赖 Android 框架：
+### RootShell 扩展方法
+
 ```kotlin
-object RollbackController {
-    fun suggestRollback(action: AIDecisionEngine.Action, currentPackage: String): Suggestion {
-        return when (action) {
-            is Click -> Suggestion(description = "返回上一页", actions = listOf(Back))
-            is InputText -> Suggestion(description = "清空输入框", actions = listOf(ClearText(action.query)))
-            is Swipe -> Suggestion(description = "反向滑动 ${direction.name}", actions = listOf(Swipe(reversed(direction))))
-            is LongPress -> Suggestion(description = "无法自动撤销，请手动恢复")
+object RootShell {
+    // 已有：execute(command): String?
+    
+    /** 读取电池百分比 */
+    fun batteryLevel(): Int? = runCatching {
+        val output = execute(BATTERY_LEVEL)
+        output?.toIntOrNull() ?: throw IllegalArgumentException("Invalid battery value: $output")
+    }.getOrNull()
+
+    /** 读取当前屏幕亮度 (0-255) */
+    fun screenBrightness(): Int? = runCatching {
+        val output = execute("settings get system screen_brightness")
+        output?.trim()?.toIntOrNull() ?: throw IllegalArgumentException("Invalid brightness value: $output")
+    }.getOrNull()
+
+    /** 设置屏幕亮度 (0-255) */
+    fun setScreenBrightness(value: Int): Boolean {
+        if (value !in 0..255) return false
+        val output = execute("settings put system screen_brightness ${value.coerceIn(0, 255)}")
+        return output != null && output.isNotBlank()
+    }
+
+    /** 点亮屏幕 */
+    fun wakeScreen(): Boolean = execute(SCREEN_ON) != null
+
+    /** 优先执行返回，失败则尝试关闭当前应用 */
+    fun goBackOrCloseApp(): Boolean {
+        val backSuccess = ActionExecutor.back().success
+        if (backSuccess) return true
+        // 备选：通过 shell 命令结束当前进程
+        val currentPkg = ScreenReaderAccessibilityService.lastScreenPackage
+        return if (currentPkg.isNotEmpty()) {
+            execute("am force-stop $currentPkg") != null
+        } else {
+            false
         }
     }
 }
 ```
-**置信度评分**：点击/滑动有较高的回溯效果（置信度 0.8+），长按无明确逆操作（0.2）。
 
-### ActionExecutor 扩展
-```kotlin
-suspend fun back(): ActionResult  // service.performGlobalAction(GLOBAL_ACTION_BACK)
-suspend fun clearText(query: String): ActionResult  // 聚焦 + SET_TEXT("")
-```
-注意：`clearText` 需要找到输入框节点后清空内容，不能直接设空字符串（某些应用是只读文本）。
+### UI 入口
+1. **设置页**：在设置页面的底部增加「Root 增强」区域，列出可用命令和说明
+2. **聊天界面**：用户输入"读取电量""设置亮度 80"等指令时，AI 可以调用对应的 Root 命令（需显式提示权限确认）
 
-### ChatViewModel 状态管理
-- 新字段：`private var executedActions = mutableListOf<AIDecisionEngine.Action>()`
-- 每成功执行一个动作后压入栈
-- `executePendingAction` 里在动作成功后 `executedActions.add(action)`
-- `undoLastAction()`: pop 栈顶 → RollbackController.suggest() → 展示确认卡片 → 执行逆操作 → 记 rollback 日志
-
-### UI
-1. **悬浮窗**：`FloatingProgressOverlay` 添加「撤销」按钮（紧接停止按钮下方），点击时触发回调给 ViewModel
-2. **聊天界面**：在 Executing/PendingConfirm 状态区域底部增加撤销按钮
-3. **确认流程**：直接执行逆操作 + Toast 提示（「已撤销：XX 操作」）—— v1 不做二次确认简化复杂度
-
-### 日志记录
-逆操作记入日志表，`actionType="rollback"`, `details="已撤销：点击 [xxx] → 返回"`
+### 注意事项
+- 所有命令仅在 `isRootAvailable() == true` 时可用
+- 操作高风险命令（如强制停止应用）时，UI 需明确提示风险
+- 某些定制 ROM 可能不支持的部分命令路径（如 `/sys/class/power_supply/battery`），失败时优雅降级
 
 ### 单元测试
-新增 `RollbackControllerTest.kt`，验证不同动作类型的逆操作建议是否正确（无需真机执行）。
+- `RootShellCommandTest.kt`：用 Mock 方式验证命令输出的解析逻辑
+- 由于 `execute()` 是同步阻塞且有超时，测试中需要注入 mockable 的实现（或使用 `test-debug` 构建）
 
 ## 文件清单
 | 文件 | 操作 | 说明 |
 |---|---|---|
-| `service/ActionExecutor.kt` | 修改 | 新增 `back()`, `clearText()` |
-| `service/RollbackController.kt` | 新建 | 逆操作建议生成器 |
-| `ui/ChatViewModel.kt` | 修改 | 引入 `executedActions` 栈、`undoLastAction()` |
-| `service/FloatingProgressOverlay.kt` | 修改 | 加撤销按钮与回调 |
-| `ui/AgentApp.kt` | 修改 | 聊天页面加撤销 UI |
-| `test/.../RollbackControllerTest.kt` | 新建 | 逆操作建议单测 |
+| `service/RootShell.kt` | 修改 | 新增 `batteryLevel`, `screenBrightness`, `setScreenBrightness`, `wakeScreen` 等方法 |
+| `service/ActionExecutor.kt` | 修改（可选） | 补充 `finishActivity()` 或全局返回的扩展 |
+| `ui/AgentApp.kt` | 修改 | 设置页增加 Root 增强信息卡片 |
+| `test/.../RootShellCommandTest.kt` | 新建 | Root 命令输出解析测试 |
 
 ## 风险与边界
-- **长按无明确逆操作**：LongPress 的效果取决于目标应用，简单回退可能无效，UI 需提示「无法自动撤销」
-- **输入框恢复原文本**：v1.0 只做「清空」，不提供「恢复原文」功能（原文本不在 ActionLog 中记录）
-- **全局返回的可靠性**：某些应用的导航树较深，单次 back 可能不够，留作后续增强
-- **无障碍权限**：performGlobalAction 不需要额外授权，但部分定制 ROM 可能不支持
+- **设备兼容**：不同厂商的电池状态路径可能不同（有的用 `/proc/acpi/battery`，有的用 `/sys/class/power_supply`），fallback 策略需覆盖常见情况
+- **安全风险**：强制停止应用可能导致数据丢失，UI 需明确警示
+- **Root 权限**：未 Root 的设备无法使用这些命令，需降级为友好提示
