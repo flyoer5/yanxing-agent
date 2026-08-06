@@ -3,11 +3,11 @@ package com.yanxing.agent.service
 /**
  * 回滚策略控制器：根据已执行的 Action，生成逆操作建议。
  *
- * v1.0 范围：
+ * v1.1 范围：
  * - click → 全局返回 (back)
  * - input_text → 清空输入框 (clearText)
  * - swipe → 反方向滑动 (反向 Swipe)
- * - long_press → 无法自动撤销（返回 null）
+ * - long_press / back / clear_text → 无法自动逆转，提供手动引导步骤 (manualSteps)
  */
 object RollbackController {
 
@@ -31,6 +31,11 @@ object RollbackController {
                 actions = emptyList(),
                 confidence = 0.2f,
                 warning = "长按可能触发菜单/弹出窗口，无法简单逆转",
+                manualSteps = listOf(
+                    "检查是否弹出了菜单或预览窗口",
+                    "如已弹出，请手动关闭它",
+                    "如触发了额外页面跳转，请手动返回上一页",
+                ),
             )
 
             is AIDecisionEngine.Action.Swipe -> Suggestion(
@@ -52,6 +57,10 @@ object RollbackController {
                 actions = emptyList(),
                 confidence = 0.2f,
                 warning = "返回已改变页面栈，无法简单逆转，建议手动恢复",
+                manualSteps = listOf(
+                    "当前页面已因返回动作而变化",
+                    "如需回到原页面，请通过应用内导航手动返回",
+                ),
             )
 
             is AIDecisionEngine.Action.ClearText -> Suggestion(
@@ -59,6 +68,10 @@ object RollbackController {
                 actions = emptyList(),
                 confidence = 0.2f,
                 warning = "原文本未保存，无法自动恢复输入内容，建议手动重输",
+                manualSteps = listOf(
+                    "聚焦到对应输入框",
+                    "手动重新输入原内容",
+                ),
             )
         }
         suggestion ?: null
@@ -78,5 +91,6 @@ object RollbackController {
         val actions: List<AIDecisionEngine.Action>,  // 逆操作序列（可能是多步）
         val confidence: Float,             // 置信度 (0-1)
         val warning: String? = null,       // 额外提示
+        val manualSteps: List<String> = emptyList(), // 手动恢复引导步骤（无法自动逆转时使用）
     )
 }

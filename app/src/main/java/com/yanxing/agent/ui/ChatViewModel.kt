@@ -553,11 +553,22 @@ class ChatViewModel @Inject constructor(
 
         val suggestion = RollbackController.suggestRollback(lastAction, uiState.value.lastScreenPackage.orEmpty())
         val conversationId = currentConversationId.value
-        
+
+        // 无法自动逆转：展示手动引导步骤，不静默丢弃
         if (suggestion == null || suggestion.actions.isEmpty()) {
-            progressOverlay?.toast("该动作暂不支持自动撤销：${lastAction.toDesc()}")
-            _uiState.update { it.copy(error = "无法自动生成撤销操作") }
-            // 保留动作在栈里（没删），但提示手动恢复
+            val guidance = buildString {
+                append("「${lastAction.toDesc()}」无法自动撤销。\n")
+                suggestion?.warning?.let { append("⚠️ $it\n") }
+                if (suggestion?.manualSteps?.isNotEmpty() == true) {
+                    append("手动恢复步骤：\n")
+                    suggestion.manualSteps.forEachIndexed { i, step -> append("${i + 1}. $step\n") }
+                }
+                append("\n该动作已从撤销队列中移除，请按引导手动处理。")
+            }
+            repository.appendMessage(conversationId, "assistant", guidance)
+            _uiState.update { it.copy(error = null, actionStatus = ActionStatus.Idle) }
+            progressOverlay?.setUndoButton(executedActions.isNotEmpty())
+            progressOverlay?.toast("无法自动撤销，已给出手动引导")
             return
         }
 
