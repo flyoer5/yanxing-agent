@@ -131,12 +131,26 @@ API Key 只保存在设备本地的 Android Keystore 加密数据中，不会写
 - **UI 入口**：悬浮窗加「撤销上一个」按钮，聊天界面 PendingConfirm 状态区也提供撤销按钮
 - **日志支持**：逆操作记为 `actionType="rollback"`，结果写入会话摘要
 
+## 第十五阶段（Root 增强 + 编译修复）已完成
+
+新增：
+
+- **Root 能力检测**：`RootShell.isRootAvailable()` 缓存式检测 su 路径（带超时，非 Root 环境不挂起）
+- **系统控制命令**：
+  - `batteryLevel()` 读取电池百分比
+  - `screenBrightness()` / `setScreenBrightness()` 读写屏幕亮度（0-255 范围校验）
+  - `wakeScreen()` 点亮屏幕、`showRecents()` 打开最近任务
+  - `deviceInfo()` 获取型号 + 系统版本
+- **编译修复**：`withService` 改 suspend lambda、修复 `back\|return` 转义、补齐 `Back`/`ClearText` 动作在 `RollbackController` 与 `AgentApp` 的 when 分支
+- **单测修复**：亮度范围校验抽为无副作用纯函数 `isBrightnessInRange()`，无 root 环境可稳定断言
+
 ## 里程碑
 
-全部 14 个阶段已完成：基础对话 → 多会话/记忆 → 多模态 → 联网搜索 → 系统增强 → AI 替你行动 → 多轮自主决策 → 可停可控 + 语音入口 → 上线质量（防 ANR + 混淆瘦身）→ 执行回滚 v1.0。
+全部 15 个阶段已完成：基础对话 → 多会话/记忆 → 多模态 → 联网搜索 → 系统增强 → AI 替你行动 → 多轮自主决策 → 可停可控 + 语音入口 → 上线质量（防 ANR + 混淆瘦身）→ 执行回滚 v1.0 → Root 增强。
 
 ## 后续可扩展
 
 - 执行回滚 v1.1（长按无自动逆操作时的用户引导）
+- Root 命令白名单与用户授权确认 UI
 - 悬浮窗内直接展示执行结果，减少切回主界面
 - Root 增强命令扩展（电量读取、屏幕亮度、返回后台等）
