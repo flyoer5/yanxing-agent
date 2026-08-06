@@ -68,7 +68,7 @@ object ActionExecutor {
     }
 
     // ===== 滑动操作（单次执行，不重试）=====
-    fun swipe(direction: AIDecisionEngine.SwipeDirection): ActionResult = withService { service ->
+    suspend fun swipe(direction: AIDecisionEngine.SwipeDirection): ActionResult = withService { service ->
         val metrics = service.resources.displayMetrics
         val width = metrics.widthPixels.toFloat()
         val height = metrics.heightPixels.toFloat()

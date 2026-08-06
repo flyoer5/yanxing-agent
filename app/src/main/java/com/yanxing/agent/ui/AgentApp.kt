@@ -1028,6 +1028,8 @@ private fun ConfirmActionCard(action: AIDecisionEngine.Action, onConfirm: (Boole
                 text = if (action is AIDecisionEngine.Action.InputText) "输入文本确认"
                     else if (isClick) "点击操作确认"
                     else if (isSwipe) "滑动操作确认"
+                    else if (action is AIDecisionEngine.Action.Back) "返回操作确认"
+                    else if (action is AIDecisionEngine.Action.ClearText) "清空输入确认"
                     else "长按操作确认",
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
@@ -1041,6 +1043,8 @@ private fun ConfirmActionCard(action: AIDecisionEngine.Action, onConfirm: (Boole
                     is AIDecisionEngine.Action.LongPress -> "长按：${action.query}"
                     is AIDecisionEngine.Action.Swipe -> "滑动方向：${action.direction.name}"
                     is AIDecisionEngine.Action.InputText -> "输入：\"${action.text}\""
+                    is AIDecisionEngine.Action.Back -> "返回上一页"
+                    is AIDecisionEngine.Action.ClearText -> "清空输入框：${action.query}"
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

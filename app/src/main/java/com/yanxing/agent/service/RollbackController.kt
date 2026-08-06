@@ -46,6 +46,20 @@ object RollbackController {
                 confidence = 0.95f,
                 warning = null,
             )
+
+            is AIDecisionEngine.Action.Back -> Suggestion(
+                description = "返回动作无法自动撤销",
+                actions = emptyList(),
+                confidence = 0.2f,
+                warning = "返回已改变页面栈，无法简单逆转，建议手动恢复",
+            )
+
+            is AIDecisionEngine.Action.ClearText -> Suggestion(
+                description = "需要重新输入原文本",
+                actions = emptyList(),
+                confidence = 0.2f,
+                warning = "原文本未保存，无法自动恢复输入内容，建议手动重输",
+            )
         }
         suggestion ?: null
     }.getOrNull()
