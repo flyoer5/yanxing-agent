@@ -113,9 +113,12 @@ object RootShell {
         output.trim().toIntOrNull()
     }.getOrNull()
 
+    /** 校验屏幕亮度值是否在合法范围（0-255），纯逻辑无副作用 */
+    fun isBrightnessInRange(value: Int): Boolean = value in 0..255
+
     /** 设置屏幕亮度（0-255），成功返回 true */
     fun setScreenBrightness(value: Int): Boolean {
-        if (value !in 0..255) return false
+        if (!isBrightnessInRange(value)) return false
         val output = execute("settings put system screen_brightness ${value.coerceIn(0, 255)}")
         // settings put 无输出即成功
         return output != null

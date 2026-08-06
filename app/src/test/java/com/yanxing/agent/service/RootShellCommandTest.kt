@@ -26,11 +26,16 @@ class RootShellCommandTest {
 
     @Test
     fun `screen brightness range validation`() {
-        assertTrue(RootShell.setScreenBrightness(0)) // Should succeed (min value)
-        assertTrue(RootShell.setScreenBrightness(128)) // Mid-range
-        assertTrue(RootShell.setScreenBrightness(255)) // Max value
-        assertFalse(RootShell.setScreenBrightness(-1)) // Out of range
-        assertFalse(RootShell.setScreenBrightness(300)) // Out of range
+        // 范围校验是纯逻辑，不依赖设备 root 状态
+        assertTrue(RootShell.isBrightnessInRange(0)) // min value
+        assertTrue(RootShell.isBrightnessInRange(128)) // Mid-range
+        assertTrue(RootShell.isBrightnessInRange(255)) // Max value
+        assertFalse(RootShell.isBrightnessInRange(-1)) // Out of range
+        assertFalse(RootShell.isBrightnessInRange(300)) // Out of range
+
+        // 越界值在无 root 环境也必须被拒绝（校验先于执行）
+        assertFalse(RootShell.setScreenBrightness(-1))
+        assertFalse(RootShell.setScreenBrightness(300))
     }
 
     @Test
