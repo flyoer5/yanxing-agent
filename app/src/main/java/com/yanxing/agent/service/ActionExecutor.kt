@@ -269,7 +269,7 @@ object ActionExecutor {
      * 计算两个字符串的相似度 (0-1)
      * 使用 Levenshtein Distance 算法
      */
-    private fun calculateSimilarity(s1: String, s2: String): Float {
+    internal fun calculateSimilarity(s1: String, s2: String): Float {
         if (s1 == s2) return 1.0f
         if (s1.isEmpty() || s2.isEmpty()) return 0.0f
         
