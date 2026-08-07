@@ -74,6 +74,11 @@ fun resolveSnapX(currentX: Int, screenWidth: Int, windowWidth: Int): Int {
  * 显示执行状态、成功/失败计数、控制按钮
  */
 class FloatingProgressOverlay(private val context: Context) {
+
+    companion object {
+        /** 悬浮窗提示条的显示时长（毫秒） */
+        const val NOTICE_DURATION_MS = 3_000L
+    }
     
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
     private var isVisible = false
@@ -84,9 +89,9 @@ class FloatingProgressOverlay(private val context: Context) {
     private var failedCountTextView: TextView? = null
     private var currentTaskTextView: TextView? = null
     private var lastResultTextView: TextView? = null
+    private var noticeTextView: TextView? = null
     private var controlButtonView: android.widget.Button? = null
     private var undoButtonView: android.widget.Button? = null
-
     /** 用户点击"停止执行"时的回调，由 ChatViewModel 注入 */
     var onStopRequested: (() -> Unit)? = null
 
@@ -106,6 +111,7 @@ class FloatingProgressOverlay(private val context: Context) {
         val stopped: Boolean = false, // 用户已请求停止
         val lastResult: String = "",        // 最近一次执行结果的消息
         val lastResultIsSuccess: Boolean = true, // 最近一次结果是否成功（用于着色）
+        val notice: String? = null,          // 悬浮窗内短期提示（如撤销完成/无法撤销）
     )
 
     /**
@@ -214,10 +220,27 @@ class FloatingProgressOverlay(private val context: Context) {
         }
     }
 
-    /** 显示提示 Toast（由于悬浮窗无法弹出 Toast，这里只打印日志） */
+    /**
+     * 显示悬浮窗内短期提示（如"撤销完成"、"无法撤销"等）。
+     * 悬浮窗无法弹出系统 Toast，改用窗口内提示文本替代，3 秒后自动消退。
+     */
     fun toast(message: String) {
         Log.i("YanxingToast", message)
-        // TODO: 在将来可以通过震动反馈或简单 UI 提示替代
+        _currentState.value = _currentState.value.copy(notice = message)
+        updateUI()
+        val currentViewRef = currentView
+        currentViewRef?.postDelayed({
+            if (_currentState.value.notice == message) {
+                _currentState.value = _currentState.value.copy(notice = null)
+                updateUI()
+            }
+        }, NOTICE_DURATION_MS)
+    }
+
+    /** 立即清除当前提示 */
+    fun clearNotice() {
+        _currentState.value = _currentState.value.copy(notice = null)
+        updateUI()
     }
     
     private fun isDarkMode(): Boolean {
@@ -330,6 +353,14 @@ class FloatingProgressOverlay(private val context: Context) {
             }
             lastResultTextView = lastResultText
 
+            val noticeText = TextView(context).apply {
+                text = ""
+                textSize = 13f
+                setPadding(0, 2, 0, 8)
+                visibility = View.GONE
+            }
+            noticeTextView = noticeText
+
             // 停止按钮
             val controlButton = android.widget.Button(context).apply {
                 text = "停止执行"
@@ -367,6 +398,7 @@ class FloatingProgressOverlay(private val context: Context) {
             cardView.addView(failedCountText)
             cardView.addView(currentTaskText)
             cardView.addView(lastResultText)
+            cardView.addView(noticeText)
             cardView.addView(controlButton)
             cardView.addView(undoButton)
             currentView = cardView
@@ -412,6 +444,17 @@ class FloatingProgressOverlay(private val context: Context) {
             )
         }
         progressTextView?.text = "进度：${state.success + state.failed} / ${state.total}"
+        // 短期提示条：有 notice 显示，无则隐藏
+        noticeTextView?.apply {
+            if (state.notice.isNullOrBlank()) {
+                text = ""
+                visibility = View.GONE
+            } else {
+                text = "ℹ️ ${state.notice}"
+                setTextColor(colors.secondaryText)
+                visibility = View.VISIBLE
+            }
+        }
         successCountTextView?.text = "✓ 成功：${state.success}"
         failedCountTextView?.text = "✗ 失败：${state.failed}"
         controlButtonView?.apply {

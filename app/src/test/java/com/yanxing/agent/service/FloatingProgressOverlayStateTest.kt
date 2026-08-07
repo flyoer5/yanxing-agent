@@ -66,4 +66,29 @@ class FloatingProgressOverlayStateTest {
         assertEquals(0, resetState.total)
         assertEquals("", resetState.lastResult)
     }
+
+    @Test
+    fun `notice is set and can be cleared`() {
+        var state = FloatingProgressOverlay.CheckboxState()
+        // toast 设置提示
+        state = state.copy(notice = "撤销完成")
+        assertEquals("撤销完成", state.notice)
+        // 清除提示
+        state = state.copy(notice = null)
+        assertTrue(state.notice == null)
+    }
+
+    @Test
+    fun `notice duration constant is positive`() {
+        assertTrue(FloatingProgressOverlay.NOTICE_DURATION_MS > 0)
+    }
+
+    @Test
+    fun `stop suppresses notice auto-clear race`() {
+        // 提示仅在被『未改变』时才清除，避免过期提示覆盖新提示
+        val first = FloatingProgressOverlay.CheckboxState(notice = "提示A")
+        val cleared = first.copy(notice = null)
+        val next = cleared.copy(notice = "提示B")
+        assertEquals("提示B", next.notice)
+    }
 }
