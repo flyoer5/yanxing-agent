@@ -1,6 +1,7 @@
 package com.yanxing.agent.ui
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -1294,11 +1295,24 @@ private fun ActionLogScreen(
     onClearAll: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text("操作日志", style = MaterialTheme.typography.headlineSmall)
                 Text("记录‘替我行动’的操作历史", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (logs.isNotEmpty()) {
+                TextButton(onClick = {
+                    val text = formatActionLogs(logs)
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, text)
+                    }
+                    runCatching {
+                        context.startActivity(Intent.createChooser(intent, "导出操作日志"))
+                    }
+                }) { Text("导出") }
             }
             TextButton(onClick = onClearAll, enabled = logs.isNotEmpty()) { Text("清空") }
         }
