@@ -159,6 +159,35 @@ data class ChatMessage(
     val attachments: List<Attachment> = emptyList(),
 )
 
+/** 角色 → 中文标签 */
+fun roleLabel(role: String): String = when (role) {
+    "user" -> "我"
+    "assistant" -> "言行"
+    "system" -> "系统"
+    else -> role
+}
+
+/**
+ * 将当前会话格式化为可导出的纯文本（无 Android 依赖，可单测）。
+ * 格式：会话标题 → 消息列表（角色 + 内容），图片/文件附件单独标注。
+ */
+fun formatConversation(title: String, messages: List<ChatMessage>): String {
+    if (messages.isEmpty()) return "（空会话）"
+    return buildString {
+        appendLine("会话：$title")
+        appendLine("共 ${messages.size} 条消息")
+        appendLine("=".repeat(32))
+        messages.forEach { message ->
+            val role = roleLabel(message.role)
+            val attachmentNote = if (message.attachments.isEmpty()) "" else
+                " [附件 ${message.attachments.size} 个]"
+            appendLine("【$role】$attachmentNote")
+            appendLine(message.content)
+            appendLine("-".repeat(24))
+        }
+    }.trimEnd()
+}
+
 sealed class ActionStatus {
     data object Idle : ActionStatus()
     data object Readying : ActionStatus()

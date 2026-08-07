@@ -42,6 +42,7 @@ import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Send
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -84,6 +85,7 @@ import coil.compose.AsyncImage
 import com.yanxing.agent.data.Attachment
 import com.yanxing.agent.data.ActionLogEntity
 import com.yanxing.agent.data.formatActionLogs
+import com.yanxing.agent.data.formatConversation
 import com.yanxing.agent.data.ChatMessage
 import com.yanxing.agent.data.Conversation
 import com.yanxing.agent.data.ConversationGroup
@@ -146,6 +148,20 @@ fun AgentApp(
                     }
                 },
                 actions = {
+                    IconButton(onClick = {
+                        val conversation = state.conversations.find { it.id == state.selectedConversationId }
+                        val title = conversation?.title ?: "当前会话"
+                        val text = formatConversation(title, state.messages)
+                        val intent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, text)
+                        }
+                        runCatching {
+                            LocalContext.current.startActivity(Intent.createChooser(intent, "导出会话"))
+                        }
+                    }) {
+                        Icon(Icons.Outlined.Share, contentDescription = "导出会话")
+                    }
                     IconButton(onClick = { showSettings = true }) {
                         Icon(Icons.Outlined.Settings, contentDescription = "模型设置")
                     }
