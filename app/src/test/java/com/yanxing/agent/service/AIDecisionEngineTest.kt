@@ -2,6 +2,7 @@ package com.yanxing.agent.service
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -85,3 +86,49 @@ class AIDecisionEngineTest {
         assertTrue(prompt.content.orEmpty().contains("上限 5 轮"))
     }
 }
+@Test
+    fun `parse back action`() {
+        val json = """{"actions":[{"action":"back"}]}"""
+        val sequence = AIDecisionEngine.parseLLMResponse(json)
+        assertTrue(sequence.success)
+        assertTrue(sequence.actions[0] is AIDecisionEngine.Action.Back)
+    }
+
+    @Test
+    fun `parse return as alias for back`() {
+        // LLM 可能返回 "return" 而不是 "back"，需解析为 Back
+        val json = """{"actions":[{"action":"return"}]}"""
+        val sequence = AIDecisionEngine.parseLLMResponse(json)
+        assertTrue(sequence.success)
+        assertTrue(sequence.actions[0] is AIDecisionEngine.Action.Back)
+    }
+
+    @Test
+    fun `parse clear text action`() {
+        val json = """{"actions":[{"action":"clear_text","query":"搜索框"}]}"""
+        val sequence = AIDecisionEngine.parseLLMResponse(json)
+        assertTrue(sequence.success)
+        val action = sequence.actions[0] as? AIDecisionEngine.Action.ClearText
+        assertNotNull(action)
+        assertEquals("搜索框", action!!.query)
+    }
+
+    @Test
+    fun `parse coexisting rollback and normal actions`() {
+        val json = """{"actions":[{"action":"back"},{"action":"click","query":"设置"}]}"""
+        val sequence = AIDecisionEngine.parseLLMResponse(json)
+        assertTrue(sequence.success)
+        assertEquals(2, sequence.actions.size)
+        assertTrue(sequence.actions[0] is AIDecisionEngine.Action.Back)
+        assertTrue(sequence.actions[1] is AIDecisionEngine.Action.Click)
+    }
+
+    @Test
+    fun `invalid swipe direction falls back to null action`() {
+        val json = """{"actions":[{"action":"swipe","direction":"DIAGONAL"},{"action":"click","query":"设置"}]}"""
+        val sequence = AIDecisionEngine.parseLLMResponse(json)
+        // 非法 swipe 应被丢弃，但合法 click 仍保留
+        assertTrue(sequence.success)
+        assertEquals(1, sequence.actions.size)
+        assertTrue(sequence.actions[0] is AIDecisionEngine.Action.Click)
+    }
