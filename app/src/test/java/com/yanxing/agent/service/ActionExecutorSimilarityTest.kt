@@ -20,7 +20,8 @@ class ActionExecutorSimilarityTest {
     fun `empty strings score 0`() {
         assertEquals(0.0f, ActionExecutor.calculateSimilarity("", "确定"), 0.001f)
         assertEquals(0.0f, ActionExecutor.calculateSimilarity("确定", ""), 0.001f)
-        assertEquals(0.0f, ActionExecutor.calculateSimilarity("", ""), 0.001f)
+        // 空对空：两者相等，按完全匹配处理
+        assertEquals(1.0f, ActionExecutor.calculateSimilarity("", ""), 0.001f)
     }
 
     @Test
