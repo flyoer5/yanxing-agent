@@ -565,7 +565,9 @@ class ChatViewModel @Inject constructor(
                 }
                 append("\n该动作已从撤销队列中移除，请按引导手动处理。")
             }
-            repository.appendMessage(conversationId, "assistant", guidance)
+            viewModelScope.launch {
+                repository.appendMessage(conversationId, "assistant", guidance)
+            }
             _uiState.update { it.copy(error = null, actionStatus = ActionStatus.Idle) }
             progressOverlay?.setUndoButton(executedActions.isNotEmpty())
             progressOverlay?.toast("无法自动撤销，已给出手动引导")
