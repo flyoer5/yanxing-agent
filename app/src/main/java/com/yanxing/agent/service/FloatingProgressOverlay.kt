@@ -25,6 +25,7 @@ class FloatingProgressOverlay(private val context: Context) {
     private var successCountTextView: TextView? = null
     private var failedCountTextView: TextView? = null
     private var currentTaskTextView: TextView? = null
+    private var lastResultTextView: TextView? = null
     private var controlButtonView: android.widget.Button? = null
     private var undoButtonView: android.widget.Button? = null
 
@@ -45,7 +46,21 @@ class FloatingProgressOverlay(private val context: Context) {
         val currentStep: String = "",
         val actionModeEnabled: Boolean = false,
         val stopped: Boolean = false, // 用户已请求停止
+        val lastResult: String = "",        // 最近一次执行结果的消息
+        val lastResultIsSuccess: Boolean = true, // 最近一次结果是否成功（用于着色）
     )
+
+    /**
+     * 展示最近一次执行结果（成功绿 / 失败红）。
+     * @param success 结果是否成功，决定文本颜色
+     */
+    fun showResult(message: String, success: Boolean) {
+        _currentState.value = _currentState.value.copy(
+            lastResult = message,
+            lastResultIsSuccess = success,
+        )
+        updateUI()
+    }
     
     init {
         updateUI()
@@ -234,6 +249,14 @@ class FloatingProgressOverlay(private val context: Context) {
             }
             currentTaskTextView = currentTaskText
 
+            val lastResultText = TextView(context).apply {
+                text = "结果：—"
+                textSize = 13f
+                setTextColor(context.getColor(android.R.color.darker_gray))
+                setPadding(0, 2, 0, 8)
+            }
+            lastResultTextView = lastResultText
+
             // 停止按钮
             val controlButton = android.widget.Button(context).apply {
                 text = "停止执行"
@@ -270,6 +293,7 @@ class FloatingProgressOverlay(private val context: Context) {
             cardView.addView(successCountText)
             cardView.addView(failedCountText)
             cardView.addView(currentTaskText)
+            cardView.addView(lastResultText)
             cardView.addView(controlButton)
             cardView.addView(undoButton)
             currentView = cardView
@@ -282,7 +306,7 @@ class FloatingProgressOverlay(private val context: Context) {
                         android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
                 format = PixelFormat.TRANSPARENT
                 width = 320
-                height = 360
+                height = 400
                 gravity = Gravity.TOP or Gravity.END
                 x = 0
                 y = 100
@@ -304,6 +328,18 @@ class FloatingProgressOverlay(private val context: Context) {
         val state = _currentState.value
         
         currentTaskTextView?.text = state.currentStep.ifBlank { "等待执行..." }
+        if (state.lastResult.isBlank()) {
+            lastResultTextView?.text = "结果：—"
+            lastResultTextView?.setTextColor(context.getColor(android.R.color.darker_gray))
+        } else {
+            lastResultTextView?.text = "结果：${state.lastResult}"
+            lastResultTextView?.setTextColor(
+                context.getColor(
+                    if (state.lastResultIsSuccess) android.R.color.holo_green_dark
+                    else android.R.color.holo_red_dark,
+                ),
+            )
+        }
         progressTextView?.text = "进度：${state.success + state.failed} / ${state.total}"
         successCountTextView?.text = "✓ 成功：${state.success}"
         failedCountTextView?.text = "✗ 失败：${state.failed}"

@@ -541,6 +541,18 @@ class ChatViewModel @Inject constructor(
         return runCatching { rootShell.wakeScreen() }.getOrDefault(false)
     }
 
+    /** 返回桌面 */
+    fun goHome(): Boolean {
+        if (!rootShell.isRootAvailable()) return false
+        return runCatching { rootShell.goHome() }.getOrDefault(false)
+    }
+
+    /** 获取第三方应用包名列表 */
+    fun getAppList(): String? {
+        if (!rootShell.isRootAvailable()) return null
+        return runCatching { rootShell.appList() }.getOrNull()
+    }
+
     /** 获取设备信息 */
     fun getDeviceInfo(): String? {
         if (!rootShell.isRootAvailable()) return null
@@ -714,6 +726,8 @@ class ChatViewModel @Inject constructor(
             } else {
                 progressOverlay?.incrementFailed()
             }
+            // 悬浮窗内实时展示本次执行结果
+            progressOverlay?.showResult(result.message, result.success)
 
             // 批量写入操作日志（性能优化）
             viewModelScope.launch {

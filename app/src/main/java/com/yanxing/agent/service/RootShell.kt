@@ -34,6 +34,8 @@ object RootShell {
             Commands.CLEAR_RECENTS,
             Commands.SCREEN_ON,
             Commands.SHOW_RECENTS,
+            Commands.GO_HOME,
+            Commands.APP_LIST,
         )
         if (normalized in fixedCommands) return true
         val brightnessPrefix = "settings put system screen_brightness "
@@ -160,6 +162,12 @@ object RootShell {
     /** 打开系统最近任务页 */
     fun showRecents(): Boolean = execute(Commands.SHOW_RECENTS) != null
 
+    /** 返回桌面（回到主屏） */
+    fun goHome(): Boolean = execute(Commands.GO_HOME) != null
+
+    /** 获取第三方应用包名列表（换行分隔） */
+    fun appList(): String? = execute(Commands.APP_LIST)
+
     /** 获取设备信息（型号 + 系统版本） */
     fun deviceInfo(): String? = execute(Commands.GET_DEVICE_INFO)
 
@@ -171,6 +179,8 @@ object RootShell {
         const val CLEAR_RECENTS = "cmd activity recents clear-all"
         const val SCREEN_ON = "input keyevent KEYCODE_WAKEUP"
         const val SHOW_RECENTS = "cmd activity recents"
+        const val GO_HOME = "input keyevent KEYCODE_HOME"
+        const val APP_LIST = "pm list packages -3"
         const val SET_SCREEN_BRIGHTNESS = "settings put system screen_brightness"
     }
 }

@@ -42,6 +42,8 @@ class RootShellCommandTest {
     fun `whitelist accepts fixed commands and bounded brightness`() {
         assertTrue(RootShell.isCommandAllowed(RootShell.Commands.GET_DEVICE_INFO))
         assertTrue(RootShell.isCommandAllowed(RootShell.Commands.BATTERY_LEVEL))
+        assertTrue(RootShell.isCommandAllowed(RootShell.Commands.GO_HOME))
+        assertTrue(RootShell.isCommandAllowed(RootShell.Commands.APP_LIST))
         assertTrue(RootShell.isCommandAllowed("settings put system screen_brightness 0"))
         assertTrue(RootShell.isCommandAllowed("settings put system screen_brightness 255"))
     }
