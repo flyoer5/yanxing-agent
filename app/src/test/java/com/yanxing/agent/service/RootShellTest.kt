@@ -23,15 +23,18 @@ class RootShellTest {
     }
 
     @Test
-    fun `execute without root returns null or runs`() {
-        // 无 Root 设备应返回 null；有 Root 且被授权时才返回输出
-        val result = RootShell.execute("echo hello")
-        if (RootShell.isRootAvailable()) {
-            // 可能被授权也可能被拒绝，两者都合理
-            assertTrue(result == null || result!!.isNotEmpty())
-        } else {
-            assertTrue(result == null)
-        }
+    fun `execute is denied before authorization`() {
+        RootShell.setAuthorized(false)
+        assertFalse(RootShell.isAuthorized())
+        assertTrue(RootShell.execute("echo hello") == null)
+    }
+
+    @Test
+    fun `authorization can be revoked`() {
+        RootShell.setAuthorized(true)
+        assertTrue(RootShell.isAuthorized())
+        RootShell.setAuthorized(false)
+        assertFalse(RootShell.isAuthorized())
     }
 
     @Test

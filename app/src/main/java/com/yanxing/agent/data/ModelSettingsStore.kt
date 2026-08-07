@@ -38,6 +38,11 @@ class ModelSettingsStore @Inject constructor(
         get() = preferences.getBoolean(KEY_FLOATING_WINDOW, false)
         set(value) = preferences.edit().putBoolean(KEY_FLOATING_WINDOW, value).apply()
 
+    /** Root 增强是否获得用户授权，默认关闭。 */
+    var rootAuthorized: Boolean
+        get() = preferences.getBoolean(KEY_ROOT_AUTHORIZED, false)
+        set(value) = preferences.edit().putBoolean(KEY_ROOT_AUTHORIZED, value).apply()
+
     fun saveSearchApiKey(value: String) {
         if (value.isBlank()) {
             preferences.edit().remove(KEY_SEARCH_API_KEY).remove(KEY_SEARCH_API_IV).apply()
@@ -121,6 +126,7 @@ class ModelSettingsStore @Inject constructor(
         const val KEY_SEARCH_API_KEY = "search_api_key"
         const val KEY_SEARCH_API_IV = "search_api_iv"
         const val KEY_FLOATING_WINDOW = "floating_window"
+        const val KEY_ROOT_AUTHORIZED = "root_authorized"
         const val KEY_ALIAS = "yanxing_api_key"
         const val ANDROID_KEYSTORE = "AndroidKeyStore"
         const val TRANSFORMATION = "AES/GCM/NoPadding"

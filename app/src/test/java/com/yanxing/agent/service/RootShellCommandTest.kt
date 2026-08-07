@@ -39,6 +39,23 @@ class RootShellCommandTest {
     }
 
     @Test
+    fun `whitelist accepts fixed commands and bounded brightness`() {
+        assertTrue(RootShell.isCommandAllowed(RootShell.Commands.GET_DEVICE_INFO))
+        assertTrue(RootShell.isCommandAllowed(RootShell.Commands.BATTERY_LEVEL))
+        assertTrue(RootShell.isCommandAllowed("settings put system screen_brightness 0"))
+        assertTrue(RootShell.isCommandAllowed("settings put system screen_brightness 255"))
+    }
+
+    @Test
+    fun `whitelist rejects arbitrary and malformed commands`() {
+        assertFalse(RootShell.isCommandAllowed("echo hello"))
+        assertFalse(RootShell.isCommandAllowed("settings put system screen_brightness 256"))
+        assertFalse(RootShell.isCommandAllowed("settings put system screen_brightness -1"))
+        assertFalse(RootShell.isCommandAllowed("settings put system screen_brightness 1 && id"))
+        assertFalse(RootShell.isCommandAllowed("rm -rf /"))
+    }
+
+    @Test
     fun `device info format is multiline`() {
         val mockInfo = "Mi Note 3\n8.1.0"
         val splitLine = mockInfo.replace("&&", "\n")

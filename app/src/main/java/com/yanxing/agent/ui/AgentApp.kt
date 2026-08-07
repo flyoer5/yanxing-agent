@@ -214,6 +214,7 @@ fun AgentApp(
                 onSearchApiKeyChanged = viewModel::updateSearchApiKey,
                 onToggleSearch = viewModel::toggleSearchEnabled,
                 onToggleFloatingWindow = viewModel::toggleFloatingWindow,
+                onSetRootAuthorization = viewModel::setRootAuthorization,
                 onToggleActionMode = viewModel::toggleActionMode,
                 onStartActionMode = viewModel::startActionMode,
                 onSave = viewModel::saveSettings,
@@ -231,6 +232,7 @@ fun AgentApp(
             onSearchApiKeyChanged = viewModel::updateSearchApiKey,
             onToggleSearch = viewModel::toggleSearchEnabled,
             onToggleFloatingWindow = viewModel::toggleFloatingWindow,
+            onSetRootAuthorization = viewModel::setRootAuthorization,
             onToggleActionMode = viewModel::toggleActionMode,
             onStartActionMode = viewModel::startActionMode,
             onSave = { viewModel.saveSettings(); showSettings = false },
@@ -728,6 +730,7 @@ private fun SettingsScreen(
     onSearchApiKeyChanged: (String) -> Unit,
     onToggleSearch: () -> Unit,
     onToggleFloatingWindow: () -> Unit,
+    onSetRootAuthorization: (Boolean) -> Unit,
     onToggleActionMode: () -> Unit,
     onStartActionMode: () -> Unit,
     onSave: () -> Unit,
@@ -741,7 +744,7 @@ private fun SettingsScreen(
         Text("支持任意 OpenAI 兼容 API。Key 使用 Android Keystore 加密保存。", color = MaterialTheme.colorScheme.onSurfaceVariant)
         ModelFields(state, onBaseUrlChanged, onApiKeyChanged, onModelChanged)
         SearchFields(state, onSearchApiKeyChanged, onToggleSearch)
-        SystemFeaturesFields(state, onToggleFloatingWindow)
+        SystemFeaturesFields(state, onToggleFloatingWindow, onSetRootAuthorization)
         ActionModeFields(state, onToggleActionMode, onStartActionMode)
         Button(onClick = onSave, modifier = Modifier.fillMaxWidth()) { Text("保存配置") }
     }
@@ -844,7 +847,10 @@ private fun ActionModeFields(
 private fun SystemFeaturesFields(
     state: ChatUiState,
     onToggleFloatingWindow: () -> Unit,
+    onSetRootAuthorization: (Boolean) -> Unit,
 ) {
+    var showRootConfirmation by remember { mutableStateOf(false) }
+
     Text("系统增强", style = MaterialTheme.typography.titleMedium)
     // 悬浮窗开关
     Row(
@@ -906,6 +912,56 @@ private fun SystemFeaturesFields(
                 )
             }
         }
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Root 增强授权")
+                Text(
+                    text = if (state.rootAuthorized) "已授权：仅允许白名单命令"
+                    else "未授权：Root 命令默认拒绝",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(
+                checked = state.rootAuthorized,
+                enabled = root,
+                onCheckedChange = { enabled ->
+                    if (enabled) showRootConfirmation = true
+                    else onSetRootAuthorization(false)
+                },
+            )
+        }
+        Text(
+            "仅允许设备信息、电量、亮度、点亮屏幕和最近任务等预定义命令；不会执行任意 Shell 字符串。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+
+    if (showRootConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showRootConfirmation = false },
+            title = { Text("确认启用 Root 增强？") },
+            text = {
+                Text(
+                    "启用后，言行只能执行内置白名单命令，并通过 su 调用 Root。" +
+                        "请确认你了解这些命令会改变设备状态。"
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    showRootConfirmation = false
+                    onSetRootAuthorization(true)
+                }) { Text("确认授权") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRootConfirmation = false }) { Text("取消") }
+            },
+        )
     }
 }
 
@@ -982,6 +1038,7 @@ private fun SettingsDialog(
     onSearchApiKeyChanged: (String) -> Unit,
     onToggleSearch: () -> Unit,
     onToggleFloatingWindow: () -> Unit,
+    onSetRootAuthorization: (Boolean) -> Unit,
     onToggleActionMode: () -> Unit,
     onStartActionMode: () -> Unit,
     onSave: () -> Unit,
@@ -994,7 +1051,7 @@ private fun SettingsDialog(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 ModelFields(state, onBaseUrlChanged, onApiKeyChanged, onModelChanged)
                 SearchFields(state, onSearchApiKeyChanged, onToggleSearch)
-                SystemFeaturesFields(state, onToggleFloatingWindow)
+                SystemFeaturesFields(state, onToggleFloatingWindow, onSetRootAuthorization)
                 ActionModeFields(state, onToggleActionMode, onStartActionMode)
             }
         },

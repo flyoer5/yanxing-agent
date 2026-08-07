@@ -15,6 +15,35 @@ object RootShell {
 
     private const val PROCESS_TIMEOUT_MS = 3_000L
     private var cachedRootAvailable: Boolean? = null
+    @Volatile private var rootAuthorized = false
+
+    /** 设置 Root 增强授权状态；默认关闭，应用重启后由设置层重新注入。 */
+    fun setAuthorized(authorized: Boolean) {
+        rootAuthorized = authorized
+    }
+
+    fun isAuthorized(): Boolean = rootAuthorized
+
+    /** 只允许预定义命令，亮度命令仅允许数字参数。 */
+    fun isCommandAllowed(command: String): Boolean {
+        val normalized = command.trim()
+        val fixedCommands = setOf(
+            Commands.GET_DEVICE_INFO,
+            Commands.BATTERY_LEVEL,
+            Commands.GET_SCREEN_BRIGHTNESS,
+            Commands.CLEAR_RECENTS,
+            Commands.SCREEN_ON,
+            Commands.SHOW_RECENTS,
+        )
+        if (normalized in fixedCommands) return true
+        val brightnessPrefix = "settings put system screen_brightness "
+        val brightnessValue = normalized
+            .takeIf { it.startsWith(brightnessPrefix) }
+            ?.removePrefix(brightnessPrefix)
+            ?.takeIf { it.isNotEmpty() && it.all(Char::isDigit) }
+            ?.toIntOrNull()
+        return brightnessValue != null && isBrightnessInRange(brightnessValue)
+    }
 
     /** 设备是否已 Root（缓存检测结果） */
     fun isRootAvailable(): Boolean {
@@ -58,6 +87,7 @@ object RootShell {
      * @return 命令输出；失败返回 null
      */
     fun execute(command: String): String? {
+        if (!rootAuthorized || !isCommandAllowed(command)) return null
         if (!isRootAvailable()) return null
         return runCatching {
             val process = ProcessBuilder("su", "-c", command)

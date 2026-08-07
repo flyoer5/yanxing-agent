@@ -509,6 +509,13 @@ class ChatViewModel @Inject constructor(
 
     // ===== Root 增强命令入口 =====
 
+    /** 设置 Root 增强授权；关闭时立即撤销内存中的授权。 */
+    fun setRootAuthorization(authorized: Boolean) {
+        settings.rootAuthorized = authorized
+        RootShell.setAuthorized(authorized)
+        _uiState.update { it.copy(rootAuthorized = authorized) }
+    }
+
     /** 读取电池百分比 */
     fun readBatteryLevel(): String? {
         if (!rootShell.isRootAvailable()) return null
@@ -879,6 +886,7 @@ class ChatViewModel @Inject constructor(
     }
 
     private fun loadSettings() {
+        RootShell.setAuthorized(settings.rootAuthorized)
         _uiState.update {
             it.copy(
                 baseUrl = settings.baseUrl,
@@ -889,7 +897,8 @@ class ChatViewModel @Inject constructor(
                 floatingWindowEnabled = settings.floatingWindowEnabled,
                 accessibilityEnabled = isAccessibilityEnabled(),
                 rootAvailable = RootShell.isRootAvailable(),
-                batteryLevel = if (RootShell.isRootAvailable()) {
+                rootAuthorized = settings.rootAuthorized,
+                batteryLevel = if (settings.rootAuthorized && RootShell.isRootAvailable()) {
                     runCatching { 
                         val level = RootShell.batteryLevel() 
                         if (level != null) "${level}%" else ""
@@ -935,6 +944,7 @@ class ChatViewModel @Inject constructor(
         // 清理资源
         batchedLogWriter.shutdown()
         voiceInput.release()
+        RootShell.setAuthorized(false) // ViewModel 销毁时撤销内存授权
         RootShell.resetCache() // 清理 root 可用性缓存
         progressOverlay?.hide()
         progressOverlay = null
@@ -972,6 +982,7 @@ data class ChatUiState(
     val searchApiKey: String = "",
     val floatingWindowEnabled: Boolean = false,
     val rootAvailable: Boolean? = null,
+    val rootAuthorized: Boolean = false,
     val batteryLevel: String = "", // 电池百分比（Root 增强）
     val accessibilityEnabled: Boolean = false,
     val actionModeEnabled: Boolean = false, // 替我行动模式开关
