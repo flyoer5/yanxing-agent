@@ -12,6 +12,64 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
+ * 悬浮窗主题配色（纯数据，可由纯函数生成，便于单元测试）。
+ */
+data class OverlayColors(
+    val cardBackground: Int,
+    val titleText: Int,
+    val bodyText: Int,
+    val secondaryText: Int,
+    val successText: Int,
+    val failureText: Int,
+    val stopButtonBackground: Int,
+    val undoButtonBackground: Int,
+    val buttonText: Int,
+    val disabledBackground: Int,
+)
+
+/**
+ * 根据深色模式生成悬浮窗配色（无 Android 运行时依赖，纯逻辑可测）。
+ */
+fun resolveOverlayColors(darkMode: Boolean): OverlayColors =
+    if (darkMode) {
+        OverlayColors(
+            cardBackground = 0xFF2A2A2A.toInt(),
+            titleText = 0xFFF5F5F5.toInt(),
+            bodyText = 0xFFE0E0E0.toInt(),
+            secondaryText = 0xFF9E9E9E.toInt(),
+            successText = 0xFF66BB6A.toInt(),
+            failureText = 0xFFEF5350.toInt(),
+            stopButtonBackground = 0xFFC62828.toInt(),
+            undoButtonBackground = 0xFF1565C0.toInt(),
+            buttonText = 0xFFFFFFFF.toInt(),
+            disabledBackground = 0xFF616161.toInt(),
+        )
+    } else {
+        OverlayColors(
+            cardBackground = 0xFFFFFFFF.toInt(),
+            titleText = 0xFF000000.toInt(),
+            bodyText = 0xFF444444.toInt(),
+            secondaryText = 0xFF757575.toInt(),
+            successText = 0xFF2E7D32.toInt(),
+            failureText = 0xFFC62828.toInt(),
+            stopButtonBackground = 0xFFC62828.toInt(),
+            undoButtonBackground = 0xFF1565C0.toInt(),
+            buttonText = 0xFFFFFFFF.toInt(),
+            disabledBackground = 0xFF757575.toInt(),
+        )
+    }
+
+/**
+ * 悬浮窗水平边缘吸附：返回 ACTION_UP 时应设置的水平坐标。
+ * gravity 为 TOP|END，x 表示距右边缘的偏移；0 = 贴右，screenWidth-windowWidth = 贴左。
+ */
+fun resolveSnapX(currentX: Int, screenWidth: Int, windowWidth: Int): Int {
+    val maxX = (screenWidth - windowWidth).coerceAtLeast(0)
+    val midX = maxX / 2
+    return if (currentX < midX) 0 else maxX
+}
+
+/**
  * 悬浮窗实时进度显示
  * 显示执行状态、成功/失败计数、控制按钮
  */
@@ -162,18 +220,26 @@ class FloatingProgressOverlay(private val context: Context) {
         // TODO: 在将来可以通过震动反馈或简单 UI 提示替代
     }
     
+    private fun isDarkMode(): Boolean {
+        val nightModeFlags = context.resources.configuration.uiMode and
+            android.content.res.Configuration.UI_MODE_NIGHT_MASK
+        return nightModeFlags == android.content.res.Configuration.UI_MODE_NIGHT_YES
+    }
+
     /**
      * 创建并显示悬浮窗
      */
     private fun createView() {
         try {
             destroyView() // 先移除旧的
-            
+
+            val colors = resolveOverlayColors(isDarkMode())
+
             val cardView = android.widget.LinearLayout(context).apply {
                 orientation = android.widget.LinearLayout.VERTICAL
                 setPadding(16, 12, 16, 12)
                 background = GradientDrawable().apply {
-                    setColor(android.graphics.Color.WHITE)
+                    setColor(colors.cardBackground)
                     cornerRadius = 12f
                 }
                 elevation = 8f
@@ -197,6 +263,13 @@ class FloatingProgressOverlay(private val context: Context) {
                         windowManager.updateViewLayout(cardView, params)
                         true
                     }
+                    android.view.MotionEvent.ACTION_UP -> {
+                        // 松手后水平吸附到最近边缘
+                        val screenWidth = context.resources.displayMetrics.widthPixels
+                        params.x = resolveSnapX(params.x, screenWidth, params.width)
+                        windowManager.updateViewLayout(cardView, params)
+                        true
+                    }
                     else -> false
                 }
             }
@@ -204,7 +277,7 @@ class FloatingProgressOverlay(private val context: Context) {
             val titleText = TextView(context).apply {
                 text = "替我行动"
                 textSize = 16f
-                setTextColor(context.getColor(android.R.color.black))
+                setTextColor(colors.titleText)
                 setPadding(16, 12, 16, 12)
             }
             
@@ -212,14 +285,14 @@ class FloatingProgressOverlay(private val context: Context) {
                 id = View.generateViewId()
                 text = "准备就绪"
                 textSize = 14f
-                setTextColor(context.getColor(android.R.color.darker_gray))
+                setTextColor(colors.secondaryText)
                 setPadding(16, 0, 16, 0)
             }
             
             val progressText = TextView(context).apply {
                 text = "0 / 0"
                 textSize = 18f
-                setTextColor(android.graphics.Color.DKGRAY)
+                setTextColor(colors.bodyText)
                 setPadding(0, 4, 0, 4)
                 setBold()
             }
@@ -228,7 +301,7 @@ class FloatingProgressOverlay(private val context: Context) {
             val successCountText = TextView(context).apply {
                 text = "✓ 成功：0"
                 textSize = 14f
-                setTextColor(context.getColor(android.R.color.holo_green_dark))
+                setTextColor(colors.successText)
                 setPadding(0, 2, 0, 2)
             }
             successCountTextView = successCountText
@@ -236,7 +309,7 @@ class FloatingProgressOverlay(private val context: Context) {
             val failedCountText = TextView(context).apply {
                 text = "✗ 失败：0"
                 textSize = 14f
-                setTextColor(context.getColor(android.R.color.holo_red_dark))
+                setTextColor(colors.failureText)
                 setPadding(0, 2, 0, 2)
             }
             failedCountTextView = failedCountText
@@ -244,7 +317,7 @@ class FloatingProgressOverlay(private val context: Context) {
             val currentTaskText = TextView(context).apply {
                 text = "等待执行..."
                 textSize = 13f
-                setTextColor(context.getColor(android.R.color.black))
+                setTextColor(colors.bodyText)
                 setPadding(0, 4, 0, 8)
             }
             currentTaskTextView = currentTaskText
@@ -252,7 +325,7 @@ class FloatingProgressOverlay(private val context: Context) {
             val lastResultText = TextView(context).apply {
                 text = "结果：—"
                 textSize = 13f
-                setTextColor(context.getColor(android.R.color.darker_gray))
+                setTextColor(colors.secondaryText)
                 setPadding(0, 2, 0, 8)
             }
             lastResultTextView = lastResultText
@@ -261,8 +334,8 @@ class FloatingProgressOverlay(private val context: Context) {
             val controlButton = android.widget.Button(context).apply {
                 text = "停止执行"
                 textSize = 14f
-                setTextColor(context.getColor(android.R.color.white))
-                setBackgroundColor(context.getColor(android.R.color.holo_red_dark))
+                setTextColor(colors.buttonText)
+                setBackgroundColor(colors.stopButtonBackground)
                 setPadding(16, 8, 16, 8)
                 contentDescription = "停止替我行动执行"
             }
@@ -278,8 +351,8 @@ class FloatingProgressOverlay(private val context: Context) {
             val undoButton = android.widget.Button(context).apply {
                 text = "撤销上一个"
                 textSize = 13f
-                setTextColor(context.getColor(android.R.color.white))
-                setBackgroundColor(context.getColor(android.R.color.holo_blue_dark))
+                setTextColor(colors.buttonText)
+                setBackgroundColor(colors.undoButtonBackground)
                 setPadding(16, 6, 16, 6)
                 visibility = View.GONE
                 contentDescription = "撤销上一个操作"
@@ -326,18 +399,16 @@ class FloatingProgressOverlay(private val context: Context) {
      */
     private fun updateUI() {
         val state = _currentState.value
-        
+        val colors = resolveOverlayColors(isDarkMode())
+
         currentTaskTextView?.text = state.currentStep.ifBlank { "等待执行..." }
         if (state.lastResult.isBlank()) {
             lastResultTextView?.text = "结果：—"
-            lastResultTextView?.setTextColor(context.getColor(android.R.color.darker_gray))
+            lastResultTextView?.setTextColor(colors.secondaryText)
         } else {
             lastResultTextView?.text = "结果：${state.lastResult}"
             lastResultTextView?.setTextColor(
-                context.getColor(
-                    if (state.lastResultIsSuccess) android.R.color.holo_green_dark
-                    else android.R.color.holo_red_dark,
-                ),
+                if (state.lastResultIsSuccess) colors.successText else colors.failureText,
             )
         }
         progressTextView?.text = "进度：${state.success + state.failed} / ${state.total}"
@@ -348,9 +419,7 @@ class FloatingProgressOverlay(private val context: Context) {
             isEnabled = !state.stopped
             text = if (state.stopped) "已停止" else "停止执行"
             setBackgroundColor(
-                context.getColor(
-                    if (state.stopped) android.R.color.darker_gray else android.R.color.holo_red_dark,
-                ),
+                if (state.stopped) colors.disabledBackground else colors.stopButtonBackground,
             )
         }
     }
