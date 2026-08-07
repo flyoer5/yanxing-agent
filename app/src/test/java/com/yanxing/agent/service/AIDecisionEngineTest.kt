@@ -85,8 +85,8 @@ class AIDecisionEngineTest {
 
         assertTrue(prompt.content.orEmpty().contains("上限 5 轮"))
     }
-}
-@Test
+
+    @Test
     fun `parse back action`() {
         val json = """{"actions":[{"action":"back"}]}"""
         val sequence = AIDecisionEngine.parseLLMResponse(json)
@@ -132,3 +132,4 @@ class AIDecisionEngineTest {
         assertEquals(1, sequence.actions.size)
         assertTrue(sequence.actions[0] is AIDecisionEngine.Action.Click)
     }
+}
