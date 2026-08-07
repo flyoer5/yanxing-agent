@@ -96,8 +96,8 @@ class AIDecisionEngineTest {
 
     @Test
     fun `parse return as alias for back`() {
-        // LLM 可能返回 "return" 而不是 "back"，需解析为 Back
-        val json = """{"actions":[{"action":"return"}]}"""
+        // LLM 可能省略 action 字段、用 "return" 描述，需解析为 Back
+        val json = """{"actions":[{"query":"return to previous"}]}"""
         val sequence = AIDecisionEngine.parseLLMResponse(json)
         assertTrue(sequence.success)
         assertTrue(sequence.actions[0] is AIDecisionEngine.Action.Back)
