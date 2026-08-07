@@ -83,6 +83,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.yanxing.agent.data.Attachment
 import com.yanxing.agent.data.ActionLogEntity
+import com.yanxing.agent.data.formatActionLogs
 import com.yanxing.agent.data.ChatMessage
 import com.yanxing.agent.data.Conversation
 import com.yanxing.agent.data.ConversationGroup
