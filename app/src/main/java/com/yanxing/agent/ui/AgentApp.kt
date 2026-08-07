@@ -105,6 +105,7 @@ fun AgentApp(
     var showSettings by remember { mutableStateOf(false) }
     var showSessions by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
+    val appContext = LocalContext.current
 
     LaunchedEffect(initialText) {
         if (!initialText.isNullOrBlank()) {
@@ -157,7 +158,7 @@ fun AgentApp(
                             putExtra(Intent.EXTRA_TEXT, text)
                         }
                         runCatching {
-                            LocalContext.current.startActivity(Intent.createChooser(intent, "导出会话"))
+                            appContext.startActivity(Intent.createChooser(intent, "导出会话"))
                         }
                     }) {
                         Icon(Icons.Outlined.Share, contentDescription = "导出会话")
