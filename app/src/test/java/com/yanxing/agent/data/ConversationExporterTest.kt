@@ -13,7 +13,6 @@ class ConversationExporterTest {
     @Test
     fun `empty conversation produces placeholder`() {
         assertEquals("（空会话）", formatConversation("测试会话", emptyList()))
-    }
 
     @Test
     fun `single message contains title role and content`() {
@@ -96,5 +95,15 @@ class ConversationExporterTest {
             messages = listOf(ChatMessage("x1", "custom_role", "未知角色消息")),
         )
         assertTrue("实际输出: $text", text.contains("【custom_role】"))
+    }
+}
+    @Test
+    fun `blank title falls back to default name`() {
+        val text = formatConversation(
+            title = "   ",
+            messages = listOf(ChatMessage("m1", "user", "你好")),
+        )
+        assertTrue(text.contains("会话：未命名会话"))
+        assertFalse(text.contains("会话：  "))
     }
 }

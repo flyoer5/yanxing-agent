@@ -209,8 +209,9 @@ fun roleLabel(role: String): String = when (role) {
  */
 fun formatConversation(title: String, messages: List<ChatMessage>): String {
     if (messages.isEmpty()) return "（空会话）"
+    val safeTitle = title.trim().ifBlank { "未命名会话" }
     return buildString {
-        appendLine("会话：$title")
+        appendLine("会话：$safeTitle")
         appendLine("共 ${messages.size} 条消息")
         appendLine("=".repeat(32))
         messages.forEach { message ->
