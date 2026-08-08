@@ -267,6 +267,7 @@ fun AgentApp(
                 memories = state.memories,
                 onDelete = viewModel::deleteMemory,
                 onUpdate = viewModel::updateMemory,
+                onAdd = viewModel::addMemory,
                 onClearAll = viewModel::clearAllMemories,
                 appContext = appContext,
                 modifier = Modifier.padding(padding),
@@ -1899,11 +1900,13 @@ private fun MemoryScreen(
     memories: List<Memory>,
     onDelete: (String) -> Unit,
     onUpdate: (id: String, content: String, category: String) -> Unit,
+    onAdd: (content: String, category: String) -> Unit,
     onClearAll: () -> Unit,
     modifier: Modifier = Modifier,
     appContext: android.content.Context? = null,
 ) {
     var editingMemory by remember { mutableStateOf<Memory?>(null) }
+    var addingMemory by remember { mutableStateOf(false) }
     var pendingDeleteMemory by remember { mutableStateOf<Memory?>(null) }
     var categoryFilter by remember { mutableStateOf<String?>(null) }
     var confirmClearMemories by remember { mutableStateOf(false) }
@@ -1918,6 +1921,7 @@ private fun MemoryScreen(
                 Text("长期记忆", style = MaterialTheme.typography.headlineSmall)
                 Text("Agent 会从明确表达中自动记住信息", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            TextButton(onClick = { addingMemory = true }) { Text("新增") }
             if (memories.isNotEmpty()) {
                 TextButton(onClick = {
                     val text = formatMemories(shownMemories)
@@ -2064,6 +2068,47 @@ private fun MemoryScreen(
             },
             dismissButton = {
                 TextButton(onClick = { editingMemory = null }) { Text("取消") }
+            },
+        )
+    }
+
+    // 新增记忆对话框
+    if (addingMemory) {
+        var newContent by remember { mutableStateOf("") }
+        var newCategory by remember { mutableStateOf("通用") }
+        AlertDialog(
+            onDismissRequest = { addingMemory = false },
+            title = { Text("新增记忆") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = newContent,
+                        onValueChange = { newContent = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("内容") },
+                        minLines = 2,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = newCategory,
+                        onValueChange = { newCategory = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("分类") },
+                        singleLine = true,
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onAdd(newContent, newCategory)
+                        addingMemory = false
+                    },
+                    enabled = newContent.isNotBlank(),
+                ) { Text("保存") }
+            },
+            dismissButton = {
+                TextButton(onClick = { addingMemory = false }) { Text("取消") }
             },
         )
     }

@@ -306,6 +306,17 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    /** 手动新增记忆 */
+    fun addMemory(content: String, category: String) {
+        if (content.isBlank()) {
+            _uiState.update { it.copy(error = "记忆内容不能为空") }
+            return
+        }
+        viewModelScope.launch {
+            repository.saveMemory(content, category)
+        }
+    }
+
     fun clearAllActionLogs() {
         viewModelScope.launch { repository.deleteAllActionLogs() }
     }
