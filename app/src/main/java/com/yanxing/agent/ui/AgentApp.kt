@@ -1324,10 +1324,17 @@ private fun SessionsDialog(
                                 onClick = { onSelect(conversation.id) },
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Text(
-                                    text = if (conversation.id == selectedId) "✓ ${conversation.title}" else conversation.title,
-                                    maxLines = 1,
-                                )
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    Text(
+                                        text = if (conversation.id == selectedId) "✓ ${conversation.title}" else conversation.title,
+                                        maxLines = 1,
+                                    )
+                                    Text(
+                                        text = formatRelativeTime(conversation.updatedAt),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
                             }
                             TextButton(onClick = { onDelete(conversation.id) }) { Text("删除") }
                         }
@@ -1619,5 +1626,17 @@ private fun ActionLogItem(log: ActionLogEntity) {
                 )
             }
         }
+    }
+}
+
+/** 将时间戳格式化为相对时间（如"3 分钟前"），纯函数可测 */
+fun formatRelativeTime(timestamp: Long, now: Long = System.currentTimeMillis()): String {
+    val diff = now - timestamp
+    return when {
+        diff < 60_000 -> "刚刚"
+        diff < 3_600_000 -> "${diff / 60_000} 分钟前"
+        diff < 86_400_000 -> "${diff / 3_600_000} 小时前"
+        diff < 7 * 86_400_000L -> "${diff / 86_400_000} 天前"
+        else -> "更早"
     }
 }
