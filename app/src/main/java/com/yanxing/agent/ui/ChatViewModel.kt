@@ -72,6 +72,16 @@ class ChatViewModel @Inject constructor(
     private val actionHistory = StringBuilder() // 已执行动作摘要
     private val executedActions = mutableListOf<AIDecisionEngine.Action>() // 已执行的原始动作（用于回滚）
 
+    // ===== 流式生成控制 =====
+    @Volatile private var generationJob: kotlinx.coroutines.Job? = null
+
+    /** 停止当前流式回复生成 */
+    fun cancelGeneration() {
+        generationJob?.cancel()
+        generationJob = null
+        _uiState.update { it.copy(isSending = false) }
+    }
+
     private companion object {
         const val MAX_ACTION_ROUNDS = 5 // 多轮决策上限，防止死循环
     }
@@ -240,7 +250,7 @@ class ChatViewModel @Inject constructor(
             return
         }
         _uiState.update { it.copy(draft = "", isSending = true, error = null, pendingAttachments = emptyList()) }
-        viewModelScope.launch {
+        generationJob = viewModelScope.launch {
             val conversationId = currentConversationId.value
             repository.appendMessage(conversationId, "user", text, attachments)
             if (text.isNotBlank()) extractMemory(text)
@@ -308,8 +318,10 @@ class ChatViewModel @Inject constructor(
             }
             result.onSuccess {
                 repository.appendMessage(conversationId, "assistant", assistant.toString())
+                generationJob = null
                 _uiState.update { it.copy(isSending = false, inProgressReply = "", searchResultCount = 0) }
             }.onFailure { error ->
+                generationJob = null
                 _uiState.update {
                     it.copy(
                         isSending = false,

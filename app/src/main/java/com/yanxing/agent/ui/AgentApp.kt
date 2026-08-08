@@ -210,6 +210,7 @@ fun AgentApp(
                 state = state,
                 onDraftChanged = viewModel::updateDraft,
                 onSend = viewModel::send,
+                onCancelGeneration = viewModel::cancelGeneration,
                 onToggleStreaming = viewModel::toggleStreaming,
                 onAddAttachment = viewModel::addAttachment,
                 onRemoveAttachment = viewModel::removeAttachment,
@@ -288,6 +289,7 @@ private fun ChatScreen(
     state: ChatUiState,
     onDraftChanged: (String) -> Unit,
     onSend: () -> Unit,
+    onCancelGeneration: () -> Unit,
     onToggleStreaming: () -> Unit,
     onAddAttachment: (Attachment) -> Unit,
     onRemoveAttachment: (Int) -> Unit,
@@ -619,9 +621,12 @@ private fun ChatScreen(
                     color = if (state.searchEnabled) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                IconButton(onClick = onSend, enabled = canSend) {
+                IconButton(
+                    onClick = if (state.isSending) onCancelGeneration else onSend,
+                    enabled = state.isSending || canSend,
+                ) {
                     if (state.isSending) {
-                        CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                        Icon(Icons.Outlined.Close, contentDescription = "停止生成")
                     } else {
                         Icon(Icons.Outlined.Send, contentDescription = "发送")
                     }
