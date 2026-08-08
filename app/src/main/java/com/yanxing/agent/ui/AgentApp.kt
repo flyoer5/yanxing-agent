@@ -239,6 +239,7 @@ fun AgentApp(
             2 -> ActionLogScreen(
                 logs = state.actionLogs,
                 onClearAll = viewModel::clearAllActionLogs,
+                onClearPackage = viewModel::clearActionLogsForPackage,
                 modifier = Modifier.padding(padding),
             )
             else -> SettingsScreen(
@@ -1661,6 +1662,7 @@ private fun MemoryScreen(
 private fun ActionLogScreen(
     logs: List<ActionLogEntity>,
     onClearAll: () -> Unit,
+    onClearPackage: (String) -> Unit,
     modifier: Modifier = Modifier,
     appContext: android.content.Context? = null,
 ) {
@@ -1743,6 +1745,13 @@ private fun ActionLogScreen(
                         onClick = { packageFilter = packageName },
                         label = { Text(packageName) },
                     )
+                }
+                if (packageFilter != null) {
+                    item {
+                        TextButton(onClick = { onClearPackage(packageFilter!!) }) {
+                            Text("清空该应用", color = MaterialTheme.colorScheme.error)
+                        }
+                    }
                 }
             }
             Spacer(Modifier.height(4.dp))
