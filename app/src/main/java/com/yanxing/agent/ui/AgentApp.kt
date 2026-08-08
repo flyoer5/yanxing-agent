@@ -2247,7 +2247,13 @@ private fun ActionLogScreen(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = if (onlyFailures) "${shownLogs.size} 条失败记录" else "共 ${logs.size} 条",
+                    text = if (onlyFailures) {
+                        "${shownLogs.size} 条失败记录"
+                    } else {
+                        val failedCount = logs.count { it.status == "failed" }
+                        if (failedCount > 0) "共 ${logs.size} 条，失败 $failedCount 条"
+                        else "共 ${logs.size} 条"
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
