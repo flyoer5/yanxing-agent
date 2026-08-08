@@ -111,7 +111,7 @@ class ActionLogExporterTest {
         val yesterday = now - 86_400_000L
         val todayText = formatLogTime(now, now)
         val yesterdayText = formatLogTime(yesterday, now)
-        assertTrue(todayText.matches(Regex("""\d{2}:\d{2}:\d{2}""")), todayText)
-        assertTrue(yesterdayText.matches(Regex("""\d{1,2}-\d{1,2} \d{2}:\d{2}""")), yesterdayText)
+        assertTrue(todayText, todayText.matches(Regex("""\d{2}:\d{2}:\d{2}""")))
+        assertTrue(yesterdayText, yesterdayText.matches(Regex("""\d{1,2}-\d{1,2} \d{2}:\d{2}""")))
     }
 }
