@@ -1943,6 +1943,7 @@ private fun ActionLogScreen(
 ) {
     var onlyFailures by remember { mutableStateOf(false) }
     var packageFilter by remember { mutableStateOf<String?>(null) }
+    var confirmClearLogs by remember { mutableStateOf(false) }
     val packages = remember(logs) { logs.map { it.packageName }.distinct().sorted() }
     val shownLogs = remember(logs, onlyFailures, packageFilter) {
         logs.filter {
@@ -1979,7 +1980,10 @@ private fun ActionLogScreen(
                     }
                 }) { Text("导出") }
             }
-            TextButton(onClick = onClearAll, enabled = logs.isNotEmpty()) { Text("清空") }
+            TextButton(
+                onClick = { confirmClearLogs = true },
+                enabled = logs.isNotEmpty(),
+            ) { Text("清空") }
         }
         Spacer(Modifier.height(12.dp))
 
@@ -2043,6 +2047,26 @@ private fun ActionLogScreen(
                 }
             }
         }
+    }
+
+    // 清空日志确认
+    if (confirmClearLogs) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmClearLogs = false },
+            title = { Text("清空全部日志？") },
+            text = { Text("所有操作日志将被删除，此操作不可恢复。") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onClearAll()
+                        confirmClearLogs = false
+                    },
+                ) { Text("清空") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClearLogs = false }) { Text("取消") }
+            },
+        )
     }
 }
 
