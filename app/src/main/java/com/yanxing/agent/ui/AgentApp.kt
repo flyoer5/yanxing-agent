@@ -1141,15 +1141,47 @@ private fun ModelFields(
     onApiKeyChanged: (String) -> Unit,
     onModelChanged: (String) -> Unit,
 ) {
-    OutlinedTextField(
-        value = state.baseUrl,
-        onValueChange = onBaseUrlChanged,
-        modifier = Modifier.fillMaxWidth(),
-        label = { Text("API 地址") },
-        placeholder = { Text("https://api.example.com/v1") },
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+    var baseUrlMenuOpen by remember { mutableStateOf(false) }
+    val presetBaseUrls = listOf(
+        "https://api.openai.com/v1",
+        "https://api.deepseek.com/v1",
+        "https://api.anthropic.com/v1",
     )
+    androidx.compose.material3.ExposedDropdownMenuBox(
+        expanded = baseUrlMenuOpen,
+        onExpandedChange = { baseUrlMenuOpen = it },
+    ) {
+        OutlinedTextField(
+            value = state.baseUrl,
+            onValueChange = onBaseUrlChanged,
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(),
+            label = { Text("API 地址") },
+            placeholder = { Text("https://api.example.com/v1") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+            trailingIcon = {
+                androidx.compose.material3.ExposedDropdownMenuDefaults.TrailingIcon(
+                    expanded = baseUrlMenuOpen,
+                )
+            },
+        )
+        androidx.compose.material3.DropdownMenu(
+            expanded = baseUrlMenuOpen,
+            onDismissRequest = { baseUrlMenuOpen = false },
+        ) {
+            presetBaseUrls.forEach { url ->
+                androidx.compose.material3.DropdownMenuItem(
+                    text = { Text(url) },
+                    onClick = {
+                        onBaseUrlChanged(url)
+                        baseUrlMenuOpen = false
+                    },
+                )
+            }
+        }
+    }
     OutlinedTextField(
         value = state.apiKey,
         onValueChange = onApiKeyChanged,
