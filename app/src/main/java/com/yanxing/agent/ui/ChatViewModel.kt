@@ -464,7 +464,12 @@ class ChatViewModel @Inject constructor(
         val text = runCatching {
             com.yanxing.agent.service.ActionExecutor.extractText(root).take(1000)
         }.getOrElse { "读取失败：$it" }
-        return "当前界面：$pkg\n内容:\n$text"
+        // 屏幕无可见文本时明确告知 AI，避免基于空屏乱猜动作
+        return if (text.isBlank()) {
+            "当前界面：$pkg\n内容:\n（当前屏幕无可见文本，若需要执行动作请先与用户确认目标）"
+        } else {
+            "当前界面：$pkg\n内容:\n$text"
+        }
     }
 
     /** 行动模式入口：把用户消息作为任务，读屏后让 AI 规划动作（第一轮决策） */
