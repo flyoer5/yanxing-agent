@@ -438,7 +438,8 @@ private fun ChatScreen(
         }
     }
 
-    val canSend = (state.draft.isNotBlank() || state.pendingAttachments.isNotEmpty()) && !state.isSending
+    val canSend = (state.draft.isNotBlank() || state.pendingAttachments.isNotEmpty()) &&
+        (!state.isSending || state.actionStatus !is ActionStatus.Idle)
 
     // 行动模式下的特殊处理
     val isActionMode = state.actionModeEnabled
@@ -827,7 +828,8 @@ private fun ChatScreen(
                     )
                 },
                 maxLines = 5,
-                enabled = !state.isSending,
+                // 行动执行中允许输入（插话），仅普通回复生成时禁用
+                enabled = !state.isSending || state.actionStatus !is ActionStatus.Idle,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                 keyboardActions = KeyboardActions(onSend = {
                     if (canSend) onSend()
@@ -865,13 +867,20 @@ private fun ChatScreen(
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 IconButton(
-                    onClick = if (state.isSending) onCancelGeneration else onSend,
-                    enabled = state.isSending || canSend,
+                    onClick = when {
+                        state.actionStatus !is ActionStatus.Idle -> onStopAction
+                        state.isSending -> onCancelGeneration
+                        else -> onSend
+                    },
+                    enabled = state.isSending || canSend || state.actionStatus !is ActionStatus.Idle,
                 ) {
-                    if (state.isSending) {
-                        Icon(Icons.Outlined.Close, contentDescription = "停止生成")
-                    } else {
-                        Icon(Icons.Outlined.Send, contentDescription = "发送")
+                    when {
+                        state.actionStatus !is ActionStatus.Idle ->
+                            Icon(Icons.Outlined.Close, contentDescription = "停止行动")
+                        state.isSending ->
+                            Icon(Icons.Outlined.Close, contentDescription = "停止生成")
+                        else ->
+                            Icon(Icons.Outlined.Send, contentDescription = "发送")
                     }
                 }
                 TextButton(onClick = onToggleStreaming) {
