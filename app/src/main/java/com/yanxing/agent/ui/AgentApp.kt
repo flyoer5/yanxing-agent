@@ -604,6 +604,17 @@ private fun ChatScreen(
                 placeholder = { Text("输入消息…") },
                 maxLines = 5,
                 enabled = !state.isSending,
+                trailingIcon = {
+                    if (state.draft.isNotEmpty()) {
+                        IconButton(onClick = { onDraftChanged("") }) {
+                            Icon(
+                                Icons.Outlined.Close,
+                                contentDescription = "清空输入",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                },
             )
             Spacer(Modifier.width(4.dp))
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
