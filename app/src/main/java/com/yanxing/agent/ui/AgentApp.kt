@@ -86,6 +86,7 @@ import com.yanxing.agent.data.Attachment
 import com.yanxing.agent.data.ActionLogEntity
 import com.yanxing.agent.data.formatActionLogs
 import com.yanxing.agent.data.formatConversation
+import com.yanxing.agent.data.formatMemories
 import com.yanxing.agent.data.ChatMessage
 import com.yanxing.agent.data.Conversation
 import com.yanxing.agent.data.ConversationGroup
@@ -218,6 +219,7 @@ fun AgentApp(
                 memories = state.memories,
                 onDelete = viewModel::deleteMemory,
                 onClearAll = viewModel::clearAllMemories,
+                appContext = appContext,
                 modifier = Modifier.padding(padding),
             )
             2 -> ActionLogScreen(
@@ -1270,12 +1272,25 @@ private fun MemoryScreen(
     onDelete: (String) -> Unit,
     onClearAll: () -> Unit,
     modifier: Modifier = Modifier,
+    appContext: android.content.Context? = null,
 ) {
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text("长期记忆", style = MaterialTheme.typography.headlineSmall)
                 Text("Agent 会从明确表达中自动记住信息", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (memories.isNotEmpty()) {
+                TextButton(onClick = {
+                    val text = formatMemories(memories)
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, text)
+                    }
+                    appContext?.let {
+                        runCatching { it.startActivity(Intent.createChooser(intent, "导出长期记忆")) }
+                    }
+                }) { Text("导出") }
             }
             TextButton(onClick = onClearAll, enabled = memories.isNotEmpty()) { Text("清空") }
         }

@@ -218,6 +218,25 @@ data class Memory(
     val updatedAt: Long,
 )
 
+/**
+ * 将长期记忆列表格式化为可导出的纯文本（无 Android 依赖，可单测）。
+ * 格式：标题 → 条数 → 每条内容 + 分类（敏感记忆标注）。
+ */
+fun formatMemories(memories: List<Memory>): String {
+    if (memories.isEmpty()) return "暂无长期记忆"
+    return buildString {
+        appendLine("言行 Agent 长期记忆")
+        appendLine("共 ${memories.size} 条记忆")
+        appendLine("=".repeat(32))
+        memories.forEachIndexed { index, memory ->
+            appendLine("[${index + 1}] ${memory.content}")
+            appendLine("分类：${memory.category}")
+            if (memory.isSensitive) appendLine("⚠️ 敏感记忆")
+            appendLine("-".repeat(24))
+        }
+    }.trimEnd()
+}
+
 private fun ConversationEntity.toDomain() = Conversation(id, title, groupId, updatedAt)
 private fun GroupEntity.toDomain() = ConversationGroup(id, name)
 private fun MessageEntity.toDomain(): ChatMessage {
