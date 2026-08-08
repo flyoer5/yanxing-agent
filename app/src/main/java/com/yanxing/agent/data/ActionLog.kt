@@ -69,3 +69,17 @@ fun formatActionLogs(logs: List<ActionLogEntity>): String {
 fun formatLogTimestamp(timestamp: Long): String =
     java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
         .format(java.util.Date(timestamp))
+
+/**
+ * 日志列表时间：今天显示 HH:mm:ss，非今天显示 M-d HH:mm（跨天可辨）。
+ * 纯 JVM 可测。
+ */
+fun formatLogTime(timestamp: Long, now: Long = System.currentTimeMillis()): String {
+    val cal = java.util.Calendar.getInstance()
+    val logCal = java.util.Calendar.getInstance().apply { timeInMillis = timestamp }
+    val sameDay = cal.get(java.util.Calendar.YEAR) == logCal.get(java.util.Calendar.YEAR) &&
+        cal.get(java.util.Calendar.DAY_OF_YEAR) == logCal.get(java.util.Calendar.DAY_OF_YEAR)
+    val pattern = if (sameDay) "HH:mm:ss" else "M-d HH:mm"
+    return java.text.SimpleDateFormat(pattern, java.util.Locale.getDefault())
+        .format(java.util.Date(timestamp))
+}

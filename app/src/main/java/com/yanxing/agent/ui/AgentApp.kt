@@ -2245,8 +2245,7 @@ private fun ActionLogItem(log: ActionLogEntity) {
                     },
                 )
                 Text(
-                    text = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
-                        .format(java.util.Date(log.timestamp)),
+                    text = formatLogTime(log.timestamp),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

@@ -103,4 +103,15 @@ class ActionLogExporterTest {
         assertEquals(19, formatLogTimestamp(-1_000L).length)
         assertTrue(formatLogTimestamp(0L).matches(Regex("""\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}""")))
     }
+
+    @Test
+    fun `log time shows date for non-today`() {
+        val now = 1_700_000_000_000L
+        // 昨天的日志应含日期（M-d），今天的只含时间
+        val yesterday = now - 86_400_000L
+        val todayText = formatLogTime(now, now)
+        val yesterdayText = formatLogTime(yesterday, now)
+        assertTrue(todayText.matches(Regex("""\d{2}:\d{2}:\d{2}""")), todayText)
+        assertTrue(yesterdayText.matches(Regex("""\d{1,2}-\d{1,2} \d{2}:\d{2}""")), yesterdayText)
+    }
 }
