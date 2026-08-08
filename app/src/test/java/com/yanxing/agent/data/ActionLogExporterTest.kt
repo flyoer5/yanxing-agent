@@ -27,10 +27,10 @@ class ActionLogExporterTest {
     )
 
     @Test
-    fun `timestamp is formatted as yyyy-MM-dd HH:mm:ss`() {
+    fun `timestamp is formatted with date and time pattern`() {
         // 2023-11-14 22:13:20 UTC
         val formatted = formatLogTimestamp(1_700_000_000_000L)
-        assertTrue(formatted.matches(Regex("""\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}""")), "实际输出: $formatted")
+        assertTrue("实际输出: $formatted", formatted.matches(Regex("""\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}""")))
     }
 
     @Test
