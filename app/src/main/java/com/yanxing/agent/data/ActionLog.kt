@@ -75,7 +75,7 @@ fun formatLogTimestamp(timestamp: Long): String =
  * 纯 JVM 可测。
  */
 fun formatLogTime(timestamp: Long, now: Long = System.currentTimeMillis()): String {
-    val cal = java.util.Calendar.getInstance()
+    val cal = java.util.Calendar.getInstance().apply { timeInMillis = now }
     val logCal = java.util.Calendar.getInstance().apply { timeInMillis = timestamp }
     val sameDay = cal.get(java.util.Calendar.YEAR) == logCal.get(java.util.Calendar.YEAR) &&
         cal.get(java.util.Calendar.DAY_OF_YEAR) == logCal.get(java.util.Calendar.DAY_OF_YEAR)
