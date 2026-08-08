@@ -106,6 +106,9 @@ interface MessageDao {
     @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY createdAt ASC")
     suspend fun findForConversation(conversationId: String): List<MessageEntity>
 
+    @Query("SELECT DISTINCT conversationId FROM messages WHERE content LIKE '%' || :keyword || '%'")
+    suspend fun findConversationsByContent(keyword: String): List<String>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(message: MessageEntity)
 }

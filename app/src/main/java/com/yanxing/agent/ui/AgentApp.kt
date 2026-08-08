@@ -295,6 +295,7 @@ fun AgentApp(
             onSelect = { viewModel.switchConversation(it); showSessions = false },
             onDelete = viewModel::deleteConversation,
                 onRename = viewModel::renameConversation,
+                onSearchByContent = viewModel::searchConversationsByContent,
             onCreateGroup = viewModel::createGroup,
             onAssignGroup = viewModel::assignCurrentConversation,
             onDismiss = { showSessions = false },
@@ -1299,6 +1300,7 @@ private fun SessionsDialog(
     onSelect: (String) -> Unit,
     onDelete: (String) -> Unit,
     onRename: (id: String, newTitle: String) -> Unit,
+    onSearchByContent: (keyword: String, onResult: (List<String>) -> Unit) -> Unit,
     onCreateGroup: (String) -> Unit,
     onAssignGroup: (String?) -> Unit,
     onDismiss: () -> Unit,
@@ -1306,10 +1308,19 @@ private fun SessionsDialog(
     var renameTarget by remember { mutableStateOf<Conversation?>(null) }
     var newGroupName by remember { mutableStateOf("") }
     var searchQuery by remember { mutableStateOf("") }
-    val filteredConversations = remember(conversations, searchQuery) {
+    var contentMatchIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    LaunchedEffect(searchQuery) {
+        if (searchQuery.isBlank()) {
+            contentMatchIds = emptySet()
+        } else {
+            onSearchByContent(searchQuery) { ids -> contentMatchIds = ids.toSet() }
+        }
+    }
+    val filteredConversations = remember(conversations, searchQuery, contentMatchIds) {
         if (searchQuery.isBlank()) conversations
         else conversations.filter {
-            it.title.contains(searchQuery.trim(), ignoreCase = true)
+            it.title.contains(searchQuery.trim(), ignoreCase = true) ||
+                it.id in contentMatchIds
         }
     }
     AlertDialog(

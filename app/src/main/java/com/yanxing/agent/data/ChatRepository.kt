@@ -84,6 +84,10 @@ class ChatRepository @Inject constructor(
 
     suspend fun deleteConversation(id: String) = conversationDao.delete(id)
 
+    /** 按消息内容搜索会话 id 列表（标题搜索之外的补充） */
+    suspend fun searchConversationIdsByContent(keyword: String): List<String> =
+        messageDao.findConversationsByContent(keyword.trim())
+
     suspend fun createGroup(name: String) {
         if (name.isNotBlank()) {
             groupDao.upsert(GroupEntity(UUID.randomUUID().toString(), name.trim(), System.currentTimeMillis()))

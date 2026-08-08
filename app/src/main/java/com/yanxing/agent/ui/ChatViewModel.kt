@@ -228,6 +228,15 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    /** 按消息内容搜索会话 id（供会话搜索框使用） */
+    fun searchConversationsByContent(keyword: String, onResult: (List<String>) -> Unit) {
+        if (keyword.isBlank()) return
+        viewModelScope.launch {
+            val ids = repository.searchConversationIdsByContent(keyword)
+            onResult(ids)
+        }
+    }
+
     fun createGroup(name: String) {
         viewModelScope.launch { repository.createGroup(name) }
     }
