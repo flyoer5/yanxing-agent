@@ -478,7 +478,27 @@ private fun ChatScreen(
                             Text("行动已完成", style = MaterialTheme.typography.labelSmall)
                         }
                         is ActionStatus.PendingConfirm.Waiting -> {
-                            Text("等待确认动作（${state.actionStatus.index + 1}/${state.actionStatus.actions.size}）", style = MaterialTheme.typography.labelSmall)
+                            val pending = state.actionStatus
+                            Column {
+                                Text(
+                                    "等待确认第 ${pending.index + 1}/${pending.actions.size} 个操作",
+                                    style = MaterialTheme.typography.labelSmall,
+                                )
+                                Row(
+                                    modifier = Modifier.padding(top = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Button(
+                                        onClick = { onConfirmAction(true) },
+                                        modifier = Modifier.height(32.dp),
+                                        contentPadding = PaddingValues(horizontal = 12.dp),
+                                    ) { Text("执行", style = MaterialTheme.typography.labelMedium) }
+                                    TextButton(
+                                        onClick = { onConfirmAction(false) },
+                                        modifier = Modifier.height(32.dp),
+                                    ) { Text("跳过", style = MaterialTheme.typography.labelMedium) }
+                                }
+                            }
                         }
                         is ActionStatus.PendingConfirm.Canceled -> {
                             Text("行动已取消", style = MaterialTheme.typography.labelSmall)
