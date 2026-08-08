@@ -208,6 +208,14 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    /** 重命名会话 */
+    fun renameConversation(conversationId: String, newTitle: String) {
+        viewModelScope.launch {
+            val ok = repository.renameConversation(conversationId, newTitle)
+            if (!ok) _uiState.update { it.copy(error = "重命名失败（标题为空或会话不存在）") }
+        }
+    }
+
     fun createGroup(name: String) {
         viewModelScope.launch { repository.createGroup(name) }
     }

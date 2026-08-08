@@ -73,6 +73,15 @@ class ChatRepository @Inject constructor(
     suspend fun setConversationGroup(conversationId: String, groupId: String?) =
         conversationDao.setGroup(conversationId, groupId)
 
+    /** 重命名会话（标题为空时忽略） */
+    suspend fun renameConversation(conversationId: String, newTitle: String): Boolean {
+        val title = newTitle.trim()
+        if (title.isBlank()) return false
+        val current = conversationDao.findById(conversationId) ?: return false
+        conversationDao.upsert(current.copy(title = title, updatedAt = System.currentTimeMillis()))
+        return true
+    }
+
     suspend fun deleteConversation(id: String) = conversationDao.delete(id)
 
     suspend fun createGroup(name: String) {

@@ -280,6 +280,7 @@ fun AgentApp(
             onNew = { viewModel.newConversation(); showSessions = false },
             onSelect = { viewModel.switchConversation(it); showSessions = false },
             onDelete = viewModel::deleteConversation,
+                onRename = viewModel::renameConversation,
             onCreateGroup = viewModel::createGroup,
             onAssignGroup = viewModel::assignCurrentConversation,
             onDismiss = { showSessions = false },
@@ -1271,10 +1272,12 @@ private fun SessionsDialog(
     onNew: () -> Unit,
     onSelect: (String) -> Unit,
     onDelete: (String) -> Unit,
+    onRename: (id: String, newTitle: String) -> Unit,
     onCreateGroup: (String) -> Unit,
     onAssignGroup: (String?) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    var renameTarget by remember { mutableStateOf<Conversation?>(null) }
     var newGroupName by remember { mutableStateOf("") }
     var searchQuery by remember { mutableStateOf("") }
     val filteredConversations = remember(conversations, searchQuery) {
@@ -1348,6 +1351,7 @@ private fun SessionsDialog(
                                 }
                             }
                             TextButton(onClick = { onDelete(conversation.id) }) { Text("删除") }
+                            TextButton(onClick = { renameTarget = conversation }) { Text("重命名") }
                         }
                     }
                 }
@@ -1355,6 +1359,35 @@ private fun SessionsDialog(
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("关闭") } },
     )
+
+    // 重命名会话对话框
+    renameTarget?.let { conversation ->
+        var newTitle by remember(conversation.id) { mutableStateOf(conversation.title) }
+        AlertDialog(
+            onDismissRequest = { renameTarget = null },
+            title = { Text("重命名会话") },
+            text = {
+                OutlinedTextField(
+                    value = newTitle,
+                    onValueChange = { newTitle = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onRename(conversation.id, newTitle)
+                        renameTarget = null
+                    },
+                    enabled = newTitle.isNotBlank(),
+                ) { Text("保存") }
+            },
+            dismissButton = {
+                TextButton(onClick = { renameTarget = null }) { Text("取消") }
+            },
+        )
+    }
 }
 
 @Composable
