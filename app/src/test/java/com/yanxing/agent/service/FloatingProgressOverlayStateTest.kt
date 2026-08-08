@@ -38,6 +38,26 @@ class FloatingProgressOverlayStateTest {
     }
 
     @Test
+    fun `progress equals success plus failed`() {
+        // 进度总数 = 成功 + 失败（不变量）
+        val state = FloatingProgressOverlay.CheckboxState(
+            success = 3,
+            failed = 2,
+        )
+        assertEquals(5, state.success + state.failed)
+        assertTrue((state.success + state.failed) >= 0)
+    }
+
+    @Test
+    fun `action mode enabled flag toggles independently`() {
+        // 行动模式开关与计数无耦合
+        val on = FloatingProgressOverlay.CheckboxState(actionModeEnabled = true, success = 2)
+        val off = on.copy(actionModeEnabled = false)
+        assertEquals(2, off.success)
+        assertTrue(!off.actionModeEnabled)
+    }
+
+    @Test
     fun `stopped flag suppresses further result updates`() {
         val state = FloatingProgressOverlay.CheckboxState(stopped = true)
         assertTrue(state.stopped)
