@@ -1742,7 +1742,7 @@ private fun MemoryScreen(
             }
             if (memories.isNotEmpty()) {
                 TextButton(onClick = {
-                    val text = formatMemories(memories)
+                    val text = formatMemories(shownMemories)
                     val intent = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
                         putExtra(Intent.EXTRA_TEXT, text)
@@ -1791,7 +1791,17 @@ private fun MemoryScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(memory.content)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        memory.content,
+                                        modifier = Modifier.weight(1f, fill = false),
+                                        maxLines = 3,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    if (memory.isSensitive) {
+                                        Text("⚠️", style = MaterialTheme.typography.labelMedium)
+                                    }
+                                }
                                 Text(
                                     memory.category,
                                     style = MaterialTheme.typography.labelSmall,
