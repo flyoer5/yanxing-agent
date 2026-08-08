@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -249,6 +250,11 @@ fun AgentApp(
                 onSetRootAuthorization = viewModel::setRootAuthorization,
                 onToggleActionMode = viewModel::toggleActionMode,
                 onStartActionMode = viewModel::startActionMode,
+                onAccessibilitySettings = {
+                    runCatching {
+                        appContext.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                    }
+                },
                 onSave = {
                     viewModel.saveSettings()
                     showSettings = false
@@ -270,6 +276,11 @@ fun AgentApp(
             onSetRootAuthorization = viewModel::setRootAuthorization,
             onToggleActionMode = viewModel::toggleActionMode,
             onStartActionMode = viewModel::startActionMode,
+                onAccessibilitySettings = {
+                    runCatching {
+                        appContext.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                    }
+                },
             onSave = { viewModel.saveSettings(); showSettings = false },
             onDismiss = { showSettings = false },
         )
@@ -842,6 +853,7 @@ private fun ActionModeFields(
     state: ChatUiState,
     onToggleActionMode: () -> Unit,
     onStartActionMode: () -> Unit,
+    onAccessibilitySettings: () -> Unit,
 ) {
     Text("替我行动", style = MaterialTheme.typography.titleMedium)
 
@@ -876,10 +888,13 @@ private fun ActionModeFields(
             )
         }
         Button(
-            onClick = onStartActionMode,
-            enabled = state.accessibilityEnabled && state.actionModeEnabled,
+            onClick = {
+                if (state.accessibilityEnabled) onStartActionMode()
+                else onAccessibilitySettings()
+            },
+            enabled = state.actionModeEnabled && !state.isSending,
         ) {
-            Text("开始行动")
+            Text(if (state.accessibilityEnabled) "开始行动" else "先去开启无障碍")
         }
     }
 
