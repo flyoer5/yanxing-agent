@@ -10,6 +10,19 @@ import android.view.accessibility.AccessibilityNodeInfo
 import kotlinx.coroutines.delay
 import java.util.ArrayDeque
 
+/** 相似度匹配分级 */
+enum class MatchConfidence { HIGH, MEDIUM, LOW }
+
+/**
+ * 将相似度分数归类为匹配置信度（纯函数可测）。
+ * 高置信度可直接匹配；中置信度需结合其他信号；低置信度视为不匹配。
+ */
+fun matchConfidence(score: Float): MatchConfidence = when {
+    score >= 0.9f -> MatchConfidence.HIGH
+    score >= 0.7f -> MatchConfidence.MEDIUM
+    else -> MatchConfidence.LOW
+}
+
 /** 安全的无障碍操作封装 - 增强版：智能搜索 + 自动重试 */
 object ActionExecutor {
     data class ActionResult(
@@ -23,10 +36,6 @@ object ActionExecutor {
     private const val MAX_RETRY_COUNT = 3       // 最大重试次数
     private const val RETRY_DELAY_MS = 200L     // 重试间隔（毫秒）
     private const val NODE_DEPTH_LIMIT = 50     // 最大搜索深度
-    
-    /** 相似度阈值 (0-1) */
-    private const val HIGH_SIMILARITY_THRESHOLD = 0.9f
-    private const val MEDIUM_SIMILARITY_THRESHOLD = 0.7f
 
     fun extractText(node: AccessibilityNodeInfo?): String {
         if (node == null) return ""
@@ -256,7 +265,7 @@ object ActionExecutor {
             val descScore = calculateSimilarity(query, desc.lowercase())
             val score = maxOf(textScore, descScore)
 
-            if (score > highestScore && score >= HIGH_SIMILARITY_THRESHOLD) {
+            if (score > highestScore && matchConfidence(score) == MatchConfidence.HIGH) {
                 highestScore = score
                 bestMatch = node
             }

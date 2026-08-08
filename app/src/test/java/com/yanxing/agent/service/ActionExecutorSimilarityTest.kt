@@ -65,4 +65,14 @@ class ActionExecutorSimilarityTest {
             assertTrue("score $score for ($s1,$s2) out of bounds", score in 0.0f..1.0f)
         }
     }
+
+    @Test
+    fun `match confidence thresholds classify scores`() {
+        assertEquals(MatchConfidence.HIGH, matchConfidence(1.0f))
+        assertEquals(MatchConfidence.HIGH, matchConfidence(0.9f))
+        assertEquals(MatchConfidence.MEDIUM, matchConfidence(0.89f))
+        assertEquals(MatchConfidence.MEDIUM, matchConfidence(0.7f))
+        assertEquals(MatchConfidence.LOW, matchConfidence(0.69f))
+        assertEquals(MatchConfidence.LOW, matchConfidence(0.0f))
+    }
 }
