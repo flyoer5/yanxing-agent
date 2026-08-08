@@ -201,6 +201,10 @@ class ChatViewModel @Inject constructor(
             _uiState.update { it.copy(error = "Base URL 需以 http:// 或 https:// 开头") }
             return
         }
+        if (uiState.value.searchEnabled && uiState.value.searchApiKey.isBlank()) {
+            _uiState.update { it.copy(error = "开启联网搜索需填写 Tavily API Key") }
+            return
+        }
         settings.baseUrl = url
         settings.model = uiState.value.model
         settings.saveApiKey(uiState.value.apiKey)
