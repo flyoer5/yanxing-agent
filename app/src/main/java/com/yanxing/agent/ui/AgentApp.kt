@@ -161,7 +161,23 @@ fun AgentApp(
         modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text(if (selectedTab == 0) "言行 Agent" else tabTitle(selectedTab)) },
+                title = {
+                    if (selectedTab == 0) {
+                        val currentTitle = state.conversations
+                            .find { it.id == state.selectedConversationId }?.title ?: "言行 Agent"
+                        Column {
+                            Text(currentTitle, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                text = state.model.ifBlank { "未配置模型" },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                            )
+                        }
+                    } else {
+                        Text(tabTitle(selectedTab))
+                    }
+                },
                 navigationIcon = {
                     if (selectedTab == 0) {
                         IconButton(onClick = { showSessions = true }) {
