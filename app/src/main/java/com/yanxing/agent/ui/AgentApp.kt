@@ -763,7 +763,15 @@ private fun ChatScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "🎯 正在执行：${state.actionGoal}",
+                    text = buildString {
+                        append("🎯 正在执行：${state.actionGoal}")
+                        val st = state.actionStatus
+                        if (st is ActionStatus.Thinking) {
+                            append("（第 ${st.round} 轮决策）")
+                        } else if (st is ActionStatus.Executing) {
+                            append("（执行中 ${st.current}/${st.total}）")
+                        }
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                     maxLines = 2,
