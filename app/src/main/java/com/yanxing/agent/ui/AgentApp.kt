@@ -2089,13 +2089,40 @@ private fun MemoryScreen(
                         minLines = 2,
                     )
                     Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = newCategory,
-                        onValueChange = { newCategory = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("分类") },
-                        singleLine = true,
-                    )
+                    var addCategoryMenuOpen by remember { mutableStateOf(false) }
+                    androidx.compose.material3.ExposedDropdownMenuBox(
+                        expanded = addCategoryMenuOpen,
+                        onExpandedChange = { addCategoryMenuOpen = it },
+                    ) {
+                        OutlinedTextField(
+                            value = newCategory,
+                            onValueChange = { newCategory = it },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(),
+                            label = { Text("分类") },
+                            singleLine = true,
+                            trailingIcon = {
+                                androidx.compose.material3.ExposedDropdownMenuDefaults.TrailingIcon(
+                                    expanded = addCategoryMenuOpen,
+                                )
+                            },
+                        )
+                        androidx.compose.material3.DropdownMenu(
+                            expanded = addCategoryMenuOpen,
+                            onDismissRequest = { addCategoryMenuOpen = false },
+                        ) {
+                            categories.forEach { category ->
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = { Text(category) },
+                                    onClick = {
+                                        newCategory = category
+                                        addCategoryMenuOpen = false
+                                    },
+                                )
+                            }
+                        }
+                    }
                 }
             },
             confirmButton = {
