@@ -1651,6 +1651,7 @@ private fun SessionsDialog(
     var pendingDelete by remember { mutableStateOf<Conversation?>(null) }
     var newGroupName by remember { mutableStateOf("") }
     var searchQuery by remember { mutableStateOf("") }
+    var groupFilter by remember { mutableStateOf<String?>(null) }
     var contentMatchIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     LaunchedEffect(searchQuery) {
         if (searchQuery.isBlank()) {
@@ -1667,11 +1668,13 @@ private fun SessionsDialog(
             }
         }
     }
-    val filteredConversations = remember(conversations, searchQuery, contentMatchIds) {
-        if (searchQuery.isBlank()) conversations
-        else conversations.filter {
-            it.title.contains(searchQuery.trim(), ignoreCase = true) ||
-                it.id in contentMatchIds
+    val filteredConversations = remember(conversations, searchQuery, contentMatchIds, groupFilter) {
+        conversations.filter { conv ->
+            val groupOk = groupFilter == null || conv.groupId == groupFilter
+            val searchOk = searchQuery.isBlank() ||
+                conv.title.contains(searchQuery.trim(), ignoreCase = true) ||
+                conv.id in contentMatchIds
+            groupOk && searchOk
         }
     }
     AlertDialog(
@@ -1682,11 +1685,32 @@ private fun SessionsDialog(
                 Button(onClick = onNew, modifier = Modifier.fillMaxWidth()) { Text("新建会话") }
                 if (groups.isNotEmpty()) {
                     Text("当前会话分组", style = MaterialTheme.typography.labelLarge)
+                    if (groupFilter != null) {
+                        Text(
+                            text = "已筛选该分组（长按分组名筛选，点击取消）",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    } else {
+                        Text(
+                            text = "点击分配，长按筛选",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         TextButton(onClick = { onAssignGroup(null) }) { Text("未分组") }
                         groups.forEach { group ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                TextButton(onClick = { onAssignGroup(group.id) }) { Text(group.name) }
+                                TextButton(
+                                    onClick = { onAssignGroup(group.id) },
+                                    modifier = Modifier.combinedClickable(
+                                        onClick = { onAssignGroup(group.id) },
+                                        onLongClick = {
+                                            groupFilter = if (groupFilter == group.id) null else group.id
+                                        },
+                                    ),
+                                ) { Text(group.name) }
                                 IconButton(
                                     onClick = { renameGroupTarget = group },
                                     modifier = Modifier.size(28.dp),
