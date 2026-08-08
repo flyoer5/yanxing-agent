@@ -249,7 +249,10 @@ fun AgentApp(
                 onSetRootAuthorization = viewModel::setRootAuthorization,
                 onToggleActionMode = viewModel::toggleActionMode,
                 onStartActionMode = viewModel::startActionMode,
-                onSave = viewModel::saveSettings,
+                onSave = {
+                    viewModel.saveSettings()
+                    showSettings = false
+                },
                 modifier = Modifier.padding(padding),
             )
         }
