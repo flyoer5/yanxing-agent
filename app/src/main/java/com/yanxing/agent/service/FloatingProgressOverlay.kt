@@ -28,34 +28,34 @@ data class OverlayColors(
 )
 
 /**
- * 根据深色模式生成悬浮窗配色（无 Android 运行时依赖，纯逻辑可测）。
+ * 根据深色模式生成悬浮窗配色（马卡龙风格，无 Android 运行时依赖，纯逻辑可测）。
  */
 fun resolveOverlayColors(darkMode: Boolean): OverlayColors =
     if (darkMode) {
         OverlayColors(
-            cardBackground = 0xFF2A2A2A.toInt(),
-            titleText = 0xFFF5F5F5.toInt(),
-            bodyText = 0xFFE0E0E0.toInt(),
-            secondaryText = 0xFF9E9E9E.toInt(),
-            successText = 0xFF66BB6A.toInt(),
-            failureText = 0xFFEF5350.toInt(),
-            stopButtonBackground = 0xFFC62828.toInt(),
-            undoButtonBackground = 0xFF1565C0.toInt(),
-            buttonText = 0xFFFFFFFF.toInt(),
-            disabledBackground = 0xFF616161.toInt(),
+            cardBackground = 0xFF2E2A26.toInt(),          // 暖深棕灰
+            titleText = 0xFFF5EFE6.toInt(),
+            bodyText = 0xFFE8DFD2.toInt(),
+            secondaryText = 0xFFB5A898.toInt(),
+            successText = 0xFF9CD5B8.toInt(),           // 柔和薄荷
+            failureText = 0xFFF2B8A8.toInt(),           // 柔和杏粉
+            stopButtonBackground = 0xFFD98A8F.toInt(),   // 马卡龙珊瑚
+            undoButtonBackground = 0xFFB8A8D8.toInt(),           // 薰衣草紫
+            buttonText = 0xFF3C2F2A.toInt(),
+            disabledBackground = 0xFF6B5F55.toInt(),
         )
     } else {
         OverlayColors(
-            cardBackground = 0xFFFFFFFF.toInt(),
-            titleText = 0xFF000000.toInt(),
-            bodyText = 0xFF444444.toInt(),
-            secondaryText = 0xFF757575.toInt(),
-            successText = 0xFF2E7D32.toInt(),
-            failureText = 0xFFC62828.toInt(),
-            stopButtonBackground = 0xFFC62828.toInt(),
-            undoButtonBackground = 0xFF1565C0.toInt(),
+            cardBackground = 0xFFFFFBF5.toInt(), // 奶油米白
+            titleText = 0xFF241A12.toInt(),      // 深咖啡棕（保证对比度达标）
+            bodyText = 0xFF5A4A40.toInt(),
+            secondaryText = 0xFF9A8B7F.toInt(),
+            successText = 0xFF6FA98B.toInt(),           // 柔和薄荷绿
+            failureText = 0xFFC97A7A.toInt(),           // 柔珊瑚红
+            stopButtonBackground = 0xFFE8A0A8.toInt(),  // 马卡龙粉
+            undoButtonBackground = 0xFFB8A8D8.toInt(),           // 薰衣草紫
             buttonText = 0xFFFFFFFF.toInt(),
-            disabledBackground = 0xFF757575.toInt(),
+            disabledBackground = 0xFFD4C8BC.toInt(),
         )
     }
 

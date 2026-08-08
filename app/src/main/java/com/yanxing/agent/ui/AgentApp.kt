@@ -33,7 +33,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.Chat
@@ -84,6 +86,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType
@@ -329,6 +332,13 @@ private fun ChatScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val clipboardManager = LocalClipboardManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    // 行动模式执行时自动收起键盘（避免遮挡悬浮窗与屏幕内容）
+    LaunchedEffect(state.actionStatus) {
+        if (state.actionStatus !is ActionStatus.Idle) {
+            keyboardController?.hide()
+        }
+    }
     val listState = rememberLazyListState()
 
     // 图片选择器
@@ -662,6 +672,10 @@ private fun ChatScreen(
                 placeholder = { Text("输入消息…") },
                 maxLines = 5,
                 enabled = !state.isSending,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                keyboardActions = KeyboardActions(onSend = {
+                    if (canSend) onSend()
+                }),
                 trailingIcon = {
                     if (state.draft.isNotEmpty()) {
                         IconButton(onClick = { onDraftChanged("") }) {
@@ -771,10 +785,13 @@ private fun MessageBubble(
                         onLongClick = { onCopy(message.content) },
                     ) else Modifier,
                 ),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(20.dp, 20.dp, 20.dp, 6.dp),
             colors = androidx.compose.material3.CardDefaults.cardColors(
                 containerColor = if (isUser) MaterialTheme.colorScheme.primaryContainer
                 else MaterialTheme.colorScheme.surfaceVariant,
+            ),
+            elevation = androidx.compose.material3.CardDefaults.cardElevation(
+                defaultElevation = 1.dp,
             ),
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
