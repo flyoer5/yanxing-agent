@@ -831,6 +831,7 @@ private fun SettingsScreen(
     onSetRootAuthorization: (Boolean) -> Unit,
     onToggleActionMode: () -> Unit,
     onStartActionMode: () -> Unit,
+    onAccessibilitySettings: () -> Unit,
     onSave: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -1146,6 +1147,7 @@ private fun SettingsDialog(
     onSetRootAuthorization: (Boolean) -> Unit,
     onToggleActionMode: () -> Unit,
     onStartActionMode: () -> Unit,
+    onAccessibilitySettings: () -> Unit,
     onSave: () -> Unit,
     onDismiss: () -> Unit,
 ) {
