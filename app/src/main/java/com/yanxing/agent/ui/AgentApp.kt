@@ -851,6 +851,7 @@ private fun readFileAsBase64(context: android.content.Context, uri: Uri): String
 
 // ============ 其他屏幕 ============
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingsScreen(
     state: ChatUiState,
@@ -1157,14 +1158,42 @@ private fun ModelFields(
         singleLine = true,
         visualTransformation = PasswordVisualTransformation(),
     )
-    OutlinedTextField(
-        value = state.model,
-        onValueChange = onModelChanged,
-        modifier = Modifier.fillMaxWidth(),
-        label = { Text("模型名称") },
-        placeholder = { Text("例如 gpt-4o-mini") },
-        singleLine = true,
-    )
+    var modelMenuOpen by remember { mutableStateOf(false) }
+    val presetModels = listOf("gpt-4o-mini", "gpt-4o", "deepseek-chat", "claude-3-5-sonnet")
+    androidx.compose.material3.ExposedDropdownMenuBox(
+        expanded = modelMenuOpen,
+        onExpandedChange = { modelMenuOpen = it },
+    ) {
+        OutlinedTextField(
+            value = state.model,
+            onValueChange = onModelChanged,
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(),
+            label = { Text("模型名称") },
+            placeholder = { Text("例如 gpt-4o-mini") },
+            singleLine = true,
+            trailingIcon = {
+                androidx.compose.material3.ExposedDropdownMenuDefaults.TrailingIcon(
+                    expanded = modelMenuOpen,
+                )
+            },
+        )
+        androidx.compose.material3.DropdownMenu(
+            expanded = modelMenuOpen,
+            onDismissRequest = { modelMenuOpen = false },
+        ) {
+            presetModels.forEach { modelName ->
+                androidx.compose.material3.DropdownMenuItem(
+                    text = { Text(modelName) },
+                    onClick = {
+                        onModelChanged(modelName)
+                        modelMenuOpen = false
+                    },
+                )
+            }
+        }
+    }
 }
 
 @Composable
