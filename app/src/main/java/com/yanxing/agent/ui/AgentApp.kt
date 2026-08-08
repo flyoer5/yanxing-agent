@@ -125,6 +125,7 @@ fun AgentApp(
     var showSettings by remember { mutableStateOf(false) }
     var showSessions by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
     val appContext = LocalContext.current
 
     LaunchedEffect(initialText) {
@@ -269,6 +270,7 @@ fun AgentApp(
                 onSave = {
                     viewModel.saveSettings()
                     showSettings = false
+                    coroutineScope.launch { snackbarHostState.showSnackbar("设置已保存") }
                 },
                 modifier = Modifier.padding(padding),
             )
@@ -292,7 +294,11 @@ fun AgentApp(
                         appContext.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                     }
                 },
-            onSave = { viewModel.saveSettings(); showSettings = false },
+            onSave = {
+                    viewModel.saveSettings()
+                    showSettings = false
+                    coroutineScope.launch { snackbarHostState.showSnackbar("设置已保存") }
+                },
             onDismiss = { showSettings = false },
         )
     }
