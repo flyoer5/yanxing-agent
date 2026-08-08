@@ -314,7 +314,10 @@ class ChatViewModel @Inject constructor(
             return
         }
         // 替我行动模式：消息作为任务指令，走 AI 自动操作链路（读屏 → 决策 → 确认 → 执行 → 多轮续判）
-        if (current.actionModeEnabled && text.isNotBlank() && attachments.isEmpty()) {
+        // 行动进行中发送的消息视为普通对话（插入对话，不打断当前行动）
+        if (current.actionModeEnabled && text.isNotBlank() && attachments.isEmpty() &&
+            current.actionStatus is ActionStatus.Idle
+        ) {
             startActionTask(text)
             return
         }

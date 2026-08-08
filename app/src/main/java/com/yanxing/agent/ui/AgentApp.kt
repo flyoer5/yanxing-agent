@@ -370,8 +370,8 @@ private fun ChatScreen(
     val clipboardManager = LocalClipboardManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val inputFocusRequester = remember { FocusRequester() }
-    // 首次进入自动聚焦输入框，想说话就能直接打
-    LaunchedEffect(Unit) {
+    // 切换会话时自动聚焦输入框（切 tab 回来不弹键盘）
+    LaunchedEffect(state.selectedConversationId) {
         kotlinx.coroutines.delay(200)
         inputFocusRequester.requestFocus()
     }
@@ -420,11 +420,17 @@ private fun ChatScreen(
         }
     }
 
-    LaunchedEffect(state.messages.size, state.inProgressReply) {
+    LaunchedEffect(state.messages.size, state.inProgressReply, state.actionStatus) {
         val last = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
         val nearBottom = state.messages.isEmpty() ||
             last >= (state.messages.lastIndex - 1)
-        if (nearBottom && state.messages.isNotEmpty()) {
+        // 行动执行中始终跟随最新状态
+        if (state.actionStatus !is ActionStatus.Idle) {
+            if (state.messages.isNotEmpty()) {
+                listState.animateScrollToItem(state.messages.lastIndex)
+            }
+            showJumpToBottom = false
+        } else if (nearBottom && state.messages.isNotEmpty()) {
             listState.animateScrollToItem(state.messages.lastIndex)
             showJumpToBottom = false
         } else {
@@ -440,6 +446,46 @@ private fun ChatScreen(
     Column(modifier = modifier.fillMaxSize()) {
         // 消息列表
         if (state.messages.isEmpty()) {
+            // 新会话行动中：显示行动状态概要（读屏/确认/决策）
+            if (state.actionStatus !is ActionStatus.Idle) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    when (state.actionStatus) {
+                        is ActionStatus.Readying -> {
+                            CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text("正在读取当前界面…", style = MaterialTheme.typography.labelSmall)
+                        }
+                        is ActionStatus.Ready -> {
+                            Text("已读取界面，等待确认动作", style = MaterialTheme.typography.labelSmall)
+                        }
+                        is ActionStatus.Thinking -> {
+                            CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text("正在思考下一步…", style = MaterialTheme.typography.labelSmall)
+                        }
+                        is ActionStatus.Executing -> {
+                            CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text("正在执行动作…", style = MaterialTheme.typography.labelSmall)
+                        }
+                        is ActionStatus.Completed -> {
+                            Text("行动已完成", style = MaterialTheme.typography.labelSmall)
+                        }
+                        is ActionStatus.PendingConfirm.Waiting -> {
+                            Text("等待确认动作（${state.actionStatus.index + 1}/${state.actionStatus.actions.size}）", style = MaterialTheme.typography.labelSmall)
+                        }
+                        is ActionStatus.PendingConfirm.Canceled -> {
+                            Text("行动已取消", style = MaterialTheme.typography.labelSmall)
+                        }
+                        else -> {}
+                    }
+                }
+            }
             Column(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
