@@ -62,4 +62,23 @@ class ConversationExporterTest {
         assertTrue(text.contains("回复一"))
         assertTrue(text.contains("指令二"))
     }
+
+    @Test
+    fun `system role labeled correctly`() {
+        val text = formatConversation(
+            title = "会话",
+            messages = listOf(ChatMessage("s1", "system", "记忆已更新：用户偏好简洁")),
+        )
+        assertTrue(text.contains("【系统】"))
+        assertTrue(text.contains("记忆已更新"))
+    }
+
+    @Test
+    fun `unknown role falls back to raw label`() {
+        val text = formatConversation(
+            title = "会话",
+            messages = listOf(ChatMessage("x1", "custom_role", "未知角色消息")),
+        )
+        assertTrue(text.contains("【custom_role】"), text)
+    }
 }
