@@ -40,10 +40,18 @@ class RootShellCommandTest {
 
     @Test
     fun `whitelist accepts fixed commands and bounded brightness`() {
-        assertTrue(RootShell.isCommandAllowed(RootShell.Commands.GET_DEVICE_INFO))
-        assertTrue(RootShell.isCommandAllowed(RootShell.Commands.BATTERY_LEVEL))
-        assertTrue(RootShell.isCommandAllowed(RootShell.Commands.GO_HOME))
-        assertTrue(RootShell.isCommandAllowed(RootShell.Commands.APP_LIST))
+        // 全部 8 条固定命令都应通过白名单
+        val fixed = listOf(
+            RootShell.Commands.GET_DEVICE_INFO,
+            RootShell.Commands.BATTERY_LEVEL,
+            RootShell.Commands.GET_SCREEN_BRIGHTNESS,
+            RootShell.Commands.CLEAR_RECENTS,
+            RootShell.Commands.SCREEN_ON,
+            RootShell.Commands.SHOW_RECENTS,
+            RootShell.Commands.GO_HOME,
+            RootShell.Commands.APP_LIST,
+        )
+        fixed.forEach { assertTrue("应放行: $it", RootShell.isCommandAllowed(it)) }
         assertTrue(RootShell.isCommandAllowed("settings put system screen_brightness 0"))
         assertTrue(RootShell.isCommandAllowed("settings put system screen_brightness 255"))
     }
