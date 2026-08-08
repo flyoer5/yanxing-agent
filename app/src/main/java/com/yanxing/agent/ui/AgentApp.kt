@@ -1436,6 +1436,7 @@ private fun SessionsDialog(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MemoryScreen(
     memories: List<Memory>,
@@ -1530,6 +1531,7 @@ private fun MemoryScreen(
     editingMemory?.let { memory ->
         var editContent by remember(memory.id) { mutableStateOf(memory.content) }
         var editCategory by remember(memory.id) { mutableStateOf(memory.category) }
+        var categoryMenuOpen by remember { mutableStateOf(false) }
         AlertDialog(
             onDismissRequest = { editingMemory = null },
             title = { Text("编辑记忆") },
@@ -1543,13 +1545,40 @@ private fun MemoryScreen(
                         minLines = 2,
                     )
                     Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = editCategory,
-                        onValueChange = { editCategory = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("分类") },
-                        singleLine = true,
-                    )
+                    // 分类：下拉建议已有分类，也可手输
+                    androidx.compose.material3.ExposedDropdownMenuBox(
+                        expanded = categoryMenuOpen,
+                        onExpandedChange = { categoryMenuOpen = it },
+                    ) {
+                        OutlinedTextField(
+                            value = editCategory,
+                            onValueChange = { editCategory = it },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(),
+                            label = { Text("分类") },
+                            singleLine = true,
+                            trailingIcon = {
+                                androidx.compose.material3.ExposedDropdownMenuDefaults.TrailingIcon(
+                                    expanded = categoryMenuOpen,
+                                )
+                            },
+                        )
+                        androidx.compose.material3.DropdownMenu(
+                            expanded = categoryMenuOpen,
+                            onDismissRequest = { categoryMenuOpen = false },
+                        ) {
+                            categories.forEach { category ->
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = { Text(category) },
+                                    onClick = {
+                                        editCategory = category
+                                        categoryMenuOpen = false
+                                    },
+                                )
+                            }
+                        }
+                    }
                 }
             },
             confirmButton = {
