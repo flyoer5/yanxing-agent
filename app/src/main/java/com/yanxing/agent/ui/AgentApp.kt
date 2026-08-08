@@ -856,7 +856,13 @@ private fun MessageBubble(
                         onLongClick = { onCopy(message.content) },
                     ) else Modifier,
                 ),
-            shape = RoundedCornerShape(20.dp, 20.dp, 20.dp, 6.dp),
+            shape = if (isUser) {
+                // 用户气泡贴右：右下角小圆角
+                RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)
+            } else {
+                // AI 气泡贴左：左下角小圆角
+                RoundedCornerShape(20.dp, 20.dp, 20.dp, 6.dp)
+            },
             colors = androidx.compose.material3.CardDefaults.cardColors(
                 containerColor = if (isUser) MaterialTheme.colorScheme.primaryContainer
                 else MaterialTheme.colorScheme.surfaceVariant,
