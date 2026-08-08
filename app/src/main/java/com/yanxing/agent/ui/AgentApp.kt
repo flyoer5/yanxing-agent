@@ -73,6 +73,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -1312,8 +1313,16 @@ private fun SessionsDialog(
     LaunchedEffect(searchQuery) {
         if (searchQuery.isBlank()) {
             contentMatchIds = emptySet()
-        } else {
-            onSearchByContent(searchQuery) { ids -> contentMatchIds = ids.toSet() }
+            return@LaunchedEffect
+        }
+        // 防抖：停顿 300ms，快速输入时旧的 LaunchedEffect 会被取消，避免频繁请求
+        delay(300L)
+        val queryAtRequest = searchQuery
+        // 用 query 快照比对过滤过期回调（竞态保护）
+        onSearchByContent(queryAtRequest) { ids ->
+            if (searchQuery == queryAtRequest) {
+                contentMatchIds = ids.toSet()
+            }
         }
     }
     val filteredConversations = remember(conversations, searchQuery, contentMatchIds) {
