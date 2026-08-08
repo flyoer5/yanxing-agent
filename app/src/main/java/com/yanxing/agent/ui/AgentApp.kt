@@ -659,6 +659,13 @@ private fun ChatScreen(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
+                IconButton(onClick = onStopAction) {
+                    Icon(
+                        Icons.Outlined.Close,
+                        contentDescription = "停止行动",
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    )
+                }
             }
         }
 
