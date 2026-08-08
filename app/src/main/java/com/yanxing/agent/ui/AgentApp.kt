@@ -2349,6 +2349,7 @@ private fun ActionLogScreen(
                     onClick = {
                         onClearPackage(packageName)
                         pendingClearPackage = null
+                        packageFilter = null
                     },
                 ) { Text("清空") }
             },
