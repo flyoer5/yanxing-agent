@@ -48,6 +48,9 @@ fun isValidBaseUrl(url: String): Boolean =
             (trimmed.startsWith("http://") || trimmed.startsWith("https://"))
     }
 
+/** 单次最多附件数量 */
+const val MAX_ATTACHMENTS = 9
+
 /** 记忆相关性排序（纯函数可测）：关键词匹配 + 项目/偏好分类加权，最多取 5 条 */
 fun relevantMemories(query: String, memories: List<Memory>): List<Memory> {
     val terms = query.lowercase().split(Regex("[^\\p{L}\\p{N}]+"))
@@ -68,11 +71,6 @@ class ChatViewModel @Inject constructor(
     private val llmClient: LlmClient,
     private val webSearchClient: WebSearchClient,
 ) : ViewModel() {
-
-    companion object {
-        /** 单次最多附件数量 */
-        const val MAX_ATTACHMENTS = 9
-    }
 
     // ===== 状态管理 =====
     private val currentConversationId = MutableStateFlow("")
