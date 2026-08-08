@@ -1478,6 +1478,7 @@ private fun MemoryScreen(
             }
         }
     }
+}
 
     // 编辑记忆对话框
     editingMemory?.let { memory ->
