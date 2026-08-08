@@ -73,6 +73,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateInt
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -623,6 +628,27 @@ private fun ChatScreen(
                 if (state.inProgressReply.isNotEmpty()) {
                     item(key = "in-progress") {
                         MessageBubble(ChatMessage("in-progress", "assistant", state.inProgressReply))
+                    }
+                }
+                if (state.isSending && state.inProgressReply.isNotEmpty()) {
+                    item(key = "typing-indicator") {
+                        // 打字指示：三点循环动画
+                        val transition = rememberInfiniteTransition(label = "typing")
+                        val dots by transition.animateInt(
+                            initialValue = 0,
+                            targetValue = 3,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(450),
+                                repeatMode = RepeatMode.Restart,
+                            ),
+                            label = "dots",
+                        )
+                        Text(
+                            text = "正在生成" + ".".repeat(dots % 4),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }
@@ -1395,7 +1421,7 @@ private fun ConfirmActionCard(action: AIDecisionEngine.Action, onConfirm: (Boole
             ) {
                 Button(
                     onClick = { onConfirm(true) },
-                    enabled = !isSwipe && !isSwipe, // 滑动不需要确认
+                    enabled = !isSwipe, // 滑动动作不需要确认（风险低）
                     modifier = Modifier.weight(1f),
                 ) {
                     Text("允许执行")
