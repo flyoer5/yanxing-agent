@@ -370,10 +370,12 @@ private fun ChatScreen(
     val clipboardManager = LocalClipboardManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val inputFocusRequester = remember { FocusRequester() }
-    // 切换会话时自动聚焦输入框（切 tab 回来不弹键盘）
+    // 切换会话时自动聚焦输入框（切 tab 回来不弹键盘；行动执行中不抢焦点）
     LaunchedEffect(state.selectedConversationId) {
-        kotlinx.coroutines.delay(200)
-        inputFocusRequester.requestFocus()
+        if (state.actionStatus is ActionStatus.Idle) {
+            kotlinx.coroutines.delay(200)
+            inputFocusRequester.requestFocus()
+        }
     }
     // 行动模式执行时自动收起键盘（避免遮挡悬浮窗与屏幕内容）
     LaunchedEffect(state.actionStatus) {
