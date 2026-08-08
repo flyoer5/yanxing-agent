@@ -79,6 +79,6 @@ class ConversationExporterTest {
             title = "会话",
             messages = listOf(ChatMessage("x1", "custom_role", "未知角色消息")),
         )
-        assertTrue(text.contains("【custom_role】"), text)
+        assertTrue("实际输出: $text", text.contains("【custom_role】"))
     }
 }
