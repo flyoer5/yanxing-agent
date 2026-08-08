@@ -21,6 +21,7 @@ data class ActionLogEntity(
 /** 动作类型 → 中文标签 */
 fun actionTypeLabel(type: String): String = when (type) {
     "click" -> "点击"
+    "long_press" -> "长按"
     "swipe" -> "滑动"
     "input_text" -> "输入文本"
     "input_key" -> "按键"

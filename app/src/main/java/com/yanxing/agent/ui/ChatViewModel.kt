@@ -836,7 +836,7 @@ class ChatViewModel @Inject constructor(
                     packageName = packageName,
                     actionType = when (action) {
                         is AIDecisionEngine.Action.Click -> "click"
-                        is AIDecisionEngine.Action.LongPress -> "click"
+                        is AIDecisionEngine.Action.LongPress -> "long_press"
                         is AIDecisionEngine.Action.Swipe -> "swipe"
                         is AIDecisionEngine.Action.InputText -> "input_text"
                         is AIDecisionEngine.Action.Back -> "back"
