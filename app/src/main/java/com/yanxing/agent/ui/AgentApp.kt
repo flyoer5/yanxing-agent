@@ -1623,7 +1623,17 @@ private fun ActionLogScreen(
             }
             if (logs.isNotEmpty()) {
                 TextButton(onClick = {
-                    val text = formatActionLogs(logs)
+                    // 导出当前筛选结果（而非全部日志），所见即所得
+                    val text = buildString {
+                        if (shownLogs.isEmpty()) {
+                            appendLine("筛选条件下无匹配的操作日志")
+                        } else {
+                            appendLine(formatActionLogs(shownLogs))
+                        }
+                        if (shownLogs.size < logs.size) {
+                            append("\n（已按筛选导出 ${shownLogs.size}/${logs.size} 条）")
+                        }
+                    }
                     val intent = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
                         putExtra(Intent.EXTRA_TEXT, text)
