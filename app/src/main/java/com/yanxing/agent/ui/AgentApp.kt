@@ -1557,8 +1557,13 @@ private fun ActionLogScreen(
     appContext: android.content.Context? = null,
 ) {
     var onlyFailures by remember { mutableStateOf(false) }
-    val shownLogs = remember(logs, onlyFailures) {
-        if (onlyFailures) logs.filter { it.status == "failed" } else logs
+    var packageFilter by remember { mutableStateOf<String?>(null) }
+    val packages = remember(logs) { logs.map { it.packageName }.distinct().sorted() }
+    val shownLogs = remember(logs, onlyFailures, packageFilter) {
+        logs.filter {
+            (!onlyFailures || it.status == "failed") &&
+                (packageFilter == null || it.packageName == packageFilter)
+        }
     }
     val context = LocalContext.current
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
@@ -1601,10 +1606,34 @@ private fun ActionLogScreen(
             Spacer(Modifier.height(8.dp))
         }
 
+        // 应用筛选
+        if (packages.size > 1) {
+            LazyRow(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                item {
+                    FilterChip(
+                        selected = packageFilter == null,
+                        onClick = { packageFilter = null },
+                        label = { Text("全部应用") },
+                    )
+                }
+                items(packages) { packageName ->
+                    FilterChip(
+                        selected = packageFilter == packageName,
+                        onClick = { packageFilter = packageName },
+                        label = { Text(packageName) },
+                    )
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+        }
+
         if (logs.isEmpty()) {
             PlaceholderScreen("暂无操作日志", Modifier.fillMaxWidth().weight(1f))
         } else if (shownLogs.isEmpty()) {
-            PlaceholderScreen("筛选后无失败记录", Modifier.fillMaxWidth().weight(1f))
+            PlaceholderScreen("筛选后无匹配记录", Modifier.fillMaxWidth().weight(1f))
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(shownLogs, key = { it.id }) { log ->
