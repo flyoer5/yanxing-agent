@@ -209,7 +209,12 @@ class ChatViewModel @Inject constructor(
     }
 
     fun switchConversation(id: String) {
-        if (id == currentConversationId.value || uiState.value.isSending) return
+        if (id == currentConversationId.value) return
+        if (uiState.value.isSending) {
+            // 行动执行/回复生成中禁止切换（避免行动结果写错会话），明确提示
+            _uiState.update { it.copy(error = "行动执行中或生成中，请先停止再切换会话") }
+            return
+        }
         currentConversationId.value = id
         _uiState.update {
             it.copy(
