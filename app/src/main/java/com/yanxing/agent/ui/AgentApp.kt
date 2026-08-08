@@ -1134,6 +1134,7 @@ private fun SearchFields(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ModelFields(
     state: ChatUiState,
