@@ -41,6 +41,13 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/** 校验模型服务 BaseUrl 格式（必须 http/https 且非空），纯函数可测 */
+fun isValidBaseUrl(url: String): Boolean =
+    url.trim().let { trimmed ->
+        trimmed.isNotEmpty() &&
+            (trimmed.startsWith("http://") || trimmed.startsWith("https://"))
+    }
+
 /** 记忆相关性排序（纯函数可测）：关键词匹配 + 项目/偏好分类加权，最多取 5 条 */
 fun relevantMemories(query: String, memories: List<Memory>): List<Memory> {
     val terms = query.lowercase().split(Regex("[^\\p{L}\\p{N}]+"))
@@ -181,7 +188,12 @@ class ChatViewModel @Inject constructor(
     }
 
     fun saveSettings() {
-        settings.baseUrl = uiState.value.baseUrl
+        val url = uiState.value.baseUrl
+        if (!isValidBaseUrl(url)) {
+            _uiState.update { it.copy(error = "Base URL 需以 http:// 或 https:// 开头") }
+            return
+        }
+        settings.baseUrl = url
         settings.model = uiState.value.model
         settings.saveApiKey(uiState.value.apiKey)
         settings.saveSearchApiKey(uiState.value.searchApiKey)
