@@ -95,4 +95,12 @@ class ActionLogExporterTest {
         assertEquals("失败", actionStatusLabel("failed"))
         assertEquals("已取消", actionStatusLabel("cancelled"))
     }
+
+    @Test
+    fun `timestamp handles epoch and negative values`() {
+        // 极值时间戳不应崩溃，且格式保持一致
+        assertEquals(19, formatLogTimestamp(0L).length)
+        assertEquals(19, formatLogTimestamp(-1_000L).length)
+        assertTrue(formatLogTimestamp(0L).matches(Regex("""\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}""")))
+    }
 }
