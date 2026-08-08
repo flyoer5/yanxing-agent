@@ -299,6 +299,7 @@ fun AgentApp(
                 onSearchByContent = viewModel::searchConversationsByContent,
             onCreateGroup = viewModel::createGroup,
             onAssignGroup = viewModel::assignCurrentConversation,
+                onDeleteGroup = viewModel::deleteGroup,
             onDismiss = { showSessions = false },
         )
     }
@@ -1303,6 +1304,7 @@ private fun SessionsDialog(
     onRename: (id: String, newTitle: String) -> Unit,
     onSearchByContent: (keyword: String, onResult: (List<String>) -> Unit) -> Unit,
     onCreateGroup: (String) -> Unit,
+    onDeleteGroup: (String) -> Unit,
     onAssignGroup: (String?) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -1343,7 +1345,20 @@ private fun SessionsDialog(
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         TextButton(onClick = { onAssignGroup(null) }) { Text("未分组") }
                         groups.forEach { group ->
-                            TextButton(onClick = { onAssignGroup(group.id) }) { Text(group.name) }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                TextButton(onClick = { onAssignGroup(group.id) }) { Text(group.name) }
+                                IconButton(
+                                    onClick = { onDeleteGroup(group.id) },
+                                    modifier = Modifier.size(28.dp),
+                                ) {
+                                    Icon(
+                                        Icons.Outlined.Close,
+                                        contentDescription = "删除分组 ${group.name}",
+                                        modifier = Modifier.size(14.dp),
+                                        tint = MaterialTheme.colorScheme.outline,
+                                    )
+                                }
+                            }
                         }
                     }
                 }

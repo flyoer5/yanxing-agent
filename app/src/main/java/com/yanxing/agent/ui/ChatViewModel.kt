@@ -253,6 +253,16 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch { repository.createGroup(name) }
     }
 
+    /** 删除分组（会话保留为未分组） */
+    fun deleteGroup(id: String) {
+        viewModelScope.launch {
+            repository.deleteGroup(id)
+            // 该分组下的会话置为未分组
+            val affected = uiState.value.conversations.filter { it.groupId == id }
+            affected.forEach { repository.setConversationGroup(it.id, null) }
+        }
+    }
+
     fun assignCurrentConversation(groupId: String?) {
         viewModelScope.launch { repository.setConversationGroup(currentConversationId.value, groupId) }
     }
