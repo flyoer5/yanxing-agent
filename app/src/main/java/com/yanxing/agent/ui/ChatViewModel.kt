@@ -476,7 +476,7 @@ class ChatViewModel @Inject constructor(
         actionGoal = goal
         actionRunner.start()
         actionHistory.clear()
-        _uiState.update { it.copy(draft = "", isSending = true, error = null, pendingAttachments = emptyList()) }
+        _uiState.update { it.copy(draft = "", isSending = true, error = null, pendingAttachments = emptyList(), actionGoal = goal) }
 
         viewModelScope.launch {
             val conversationId = currentConversationId.value
@@ -584,6 +584,7 @@ class ChatViewModel @Inject constructor(
         progressOverlay = null
         actionRunner.reset()
         actionGoal = ""
+        _uiState.update { it.copy(actionGoal = "") }
         actionHistory.clear()
         executedActions.clear()
     }
@@ -949,6 +950,7 @@ class ChatViewModel @Inject constructor(
 
     private fun resetActionContext() {
         actionGoal = ""
+        _uiState.update { it.copy(actionGoal = "") }
         actionRunner.reset()
         actionHistory.clear()
     }
@@ -1060,6 +1062,7 @@ data class ChatUiState(
     val memoryReferenceCount: Int = 0,
     val draft: String = "",
     val pendingAttachments: List<Attachment> = emptyList(), // 待发送的附件
+    val actionGoal: String = "",   // 当前行动任务目标（行动中显示）
     val voiceInputMode: Boolean = false,
     val searchEnabled: Boolean = false,
     val searching: Boolean = false,
