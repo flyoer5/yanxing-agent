@@ -1630,6 +1630,7 @@ private fun tabTitle(index: Int) = when (index) {
     else -> "设置"
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun SessionsDialog(
     conversations: List<Conversation>,
