@@ -766,7 +766,11 @@ private fun ChatScreen(
                 modifier = Modifier
                     .weight(1f)
                     .focusRequester(inputFocusRequester),
-                placeholder = { Text("输入消息…") },
+                placeholder = {
+                    Text(
+                        if (isActionMode) "输入任务，如：打开微信" else "输入消息…"
+                    )
+                },
                 maxLines = 5,
                 enabled = !state.isSending,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
