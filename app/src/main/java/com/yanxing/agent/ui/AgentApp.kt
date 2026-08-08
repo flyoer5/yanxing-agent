@@ -672,6 +672,7 @@ private fun AttachmentPreview(attachment: Attachment, onRemove: () -> Unit) {
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun MessageBubble(
     message: ChatMessage,
