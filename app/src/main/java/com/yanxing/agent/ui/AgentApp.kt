@@ -43,6 +43,7 @@ import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Public
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Send
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Share
@@ -300,6 +301,7 @@ fun AgentApp(
             onCreateGroup = viewModel::createGroup,
             onAssignGroup = viewModel::assignCurrentConversation,
                 onDeleteGroup = viewModel::deleteGroup,
+                onRenameGroup = viewModel::renameGroup,
             onDismiss = { showSessions = false },
         )
     }
@@ -1305,10 +1307,12 @@ private fun SessionsDialog(
     onSearchByContent: (keyword: String, onResult: (List<String>) -> Unit) -> Unit,
     onCreateGroup: (String) -> Unit,
     onDeleteGroup: (String) -> Unit,
+    onRenameGroup: (id: String, newName: String) -> Unit,
     onAssignGroup: (String?) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var renameTarget by remember { mutableStateOf<Conversation?>(null) }
+    var renameGroupTarget by remember { mutableStateOf<ConversationGroup?>(null) }
     var newGroupName by remember { mutableStateOf("") }
     var searchQuery by remember { mutableStateOf("") }
     var contentMatchIds by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -1347,6 +1351,17 @@ private fun SessionsDialog(
                         groups.forEach { group ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 TextButton(onClick = { onAssignGroup(group.id) }) { Text(group.name) }
+                                IconButton(
+                                    onClick = { renameGroupTarget = group },
+                                    modifier = Modifier.size(28.dp),
+                                ) {
+                                    Icon(
+                                        Icons.Outlined.Edit,
+                                        contentDescription = "重命名分组 ${group.name}",
+                                        modifier = Modifier.size(14.dp),
+                                        tint = MaterialTheme.colorScheme.outline,
+                                    )
+                                }
                                 IconButton(
                                     onClick = { onDeleteGroup(group.id) },
                                     modifier = Modifier.size(28.dp),
@@ -1446,6 +1461,35 @@ private fun SessionsDialog(
             },
             dismissButton = {
                 TextButton(onClick = { renameTarget = null }) { Text("取消") }
+            },
+        )
+    }
+
+    // 重命名分组对话框
+    renameGroupTarget?.let { group ->
+        var newGroupName by remember(group.id) { mutableStateOf(group.name) }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { renameGroupTarget = null },
+            title = { Text("重命名分组") },
+            text = {
+                OutlinedTextField(
+                    value = newGroupName,
+                    onValueChange = { newGroupName = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onRenameGroup(group.id, newGroupName)
+                        renameGroupTarget = null
+                    },
+                    enabled = newGroupName.isNotBlank(),
+                ) { Text("保存") }
+            },
+            dismissButton = {
+                TextButton(onClick = { renameGroupTarget = null }) { Text("取消") }
             },
         )
     }

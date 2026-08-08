@@ -96,6 +96,15 @@ class ChatRepository @Inject constructor(
 
     suspend fun deleteGroup(id: String) = groupDao.delete(id)
 
+    /** 重命名分组（空名称忽略） */
+    suspend fun renameGroup(id: String, newName: String): Boolean {
+        val name = newName.trim()
+        if (name.isBlank()) return false
+        val existing = groupDao.findById(id) ?: return false
+        groupDao.upsert(existing.copy(name = name))
+        return true
+    }
+
     suspend fun saveMemory(content: String, category: String, sensitive: Boolean = false): Memory {
         val now = System.currentTimeMillis()
         val memory = MemoryEntity(UUID.randomUUID().toString(), content.trim(), category, sensitive, now, now)

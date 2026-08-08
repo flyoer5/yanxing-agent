@@ -263,6 +263,14 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    /** 重命名分组 */
+    fun renameGroup(id: String, newName: String) {
+        viewModelScope.launch {
+            val ok = repository.renameGroup(id, newName)
+            if (!ok) _uiState.update { it.copy(error = "重命名分组失败") }
+        }
+    }
+
     fun assignCurrentConversation(groupId: String?) {
         viewModelScope.launch { repository.setConversationGroup(currentConversationId.value, groupId) }
     }

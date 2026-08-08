@@ -70,6 +70,9 @@ interface GroupDao {
     @Query("SELECT * FROM groups ORDER BY createdAt ASC")
     fun observeAll(): Flow<List<GroupEntity>>
 
+    @Query("SELECT * FROM groups WHERE id = :id LIMIT 1")
+    suspend fun findById(id: String): GroupEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(group: GroupEntity)
 
