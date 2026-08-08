@@ -71,6 +71,21 @@ class ActionLogExporterTest {
     }
 
     @Test
+    fun `details equal to target is not duplicated`() {
+        val log = sampleLog().copy(details = "设置")
+        val text = formatActionLogs(listOf(log))
+        // 详情与目标相同 → 只打印一行"目标：设置"，不重复"详情：设置"
+        assertEquals(1, text.lines().count { it.contains("设置") })
+    }
+
+    @Test
+    fun `blank details are omitted`() {
+        val log = sampleLog().copy(details = "")
+        val text = formatActionLogs(listOf(log))
+        assertTrue(!text.contains("详情："))
+    }
+
+    @Test
     fun `label mapping covers rollback types`() {
         assertEquals("点击", actionTypeLabel("click"))
         assertEquals("回滚", actionTypeLabel("rollback"))

@@ -54,7 +54,9 @@ fun formatActionLogs(logs: List<ActionLogEntity>): String {
             appendLine("应用：${log.packageName}")
             appendLine("动作：${actionTypeLabel(log.actionType)}")
             log.targetElement?.takeIf { it.isNotBlank() }?.let { appendLine("目标：$it") }
-            appendLine("详情：${log.details}")
+            if (log.details != log.targetElement && log.details.isNotBlank()) {
+                appendLine("详情：${log.details}")
+            }
             appendLine("状态：${actionStatusLabel(log.status)}")
             log.errorMessage?.takeIf { it.isNotBlank() }?.let { appendLine("错误：$it") }
             appendLine("-".repeat(24))
