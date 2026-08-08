@@ -70,6 +70,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -300,6 +301,7 @@ private fun ChatScreen(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val clipboardManager = LocalClipboardManager.current
     val listState = rememberLazyListState()
 
     // 图片选择器
@@ -366,8 +368,7 @@ private fun ChatScreen(
                     MessageBubble(
                         message = message,
                         onCopy = { text ->
-                            val clipboard = LocalClipboardManager.current
-                            clipboard.setText(AnnotatedString(text))
+                            clipboardManager.setText(AnnotatedString(text))
                             coroutineScope.launch {
                                 onShowSnackbar("已复制消息内容")
                             }
