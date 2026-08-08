@@ -343,7 +343,12 @@ private fun ChatScreen(
     }
 
     LaunchedEffect(state.messages.size, state.inProgressReply) {
-        if (state.messages.isNotEmpty()) listState.animateScrollToItem(state.messages.lastIndex)
+        val last = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+        val nearBottom = state.messages.isEmpty() ||
+            last >= (state.messages.lastIndex - 1)
+        if (nearBottom && state.messages.isNotEmpty()) {
+            listState.animateScrollToItem(state.messages.lastIndex)
+        }
     }
 
     val canSend = (state.draft.isNotBlank() || state.pendingAttachments.isNotEmpty()) && !state.isSending
