@@ -1472,6 +1472,7 @@ private fun SessionsDialog(
 ) {
     var renameTarget by remember { mutableStateOf<Conversation?>(null) }
     var renameGroupTarget by remember { mutableStateOf<ConversationGroup?>(null) }
+    var pendingDelete by remember { mutableStateOf<Conversation?>(null) }
     var newGroupName by remember { mutableStateOf("") }
     var searchQuery by remember { mutableStateOf("") }
     var contentMatchIds by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -1585,7 +1586,7 @@ private fun SessionsDialog(
                                     )
                                 }
                             }
-                            TextButton(onClick = { onDelete(conversation.id) }) { Text("删除") }
+                            TextButton(onClick = { pendingDelete = conversation }) { Text("删除") }
                             TextButton(onClick = { renameTarget = conversation }) { Text("重命名") }
                         }
                     }
@@ -1649,6 +1650,26 @@ private fun SessionsDialog(
             },
             dismissButton = {
                 TextButton(onClick = { renameGroupTarget = null }) { Text("取消") }
+            },
+        )
+    }
+
+    // 删除会话确认对话框
+    pendingDelete?.let { conversation ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("删除会话？") },
+            text = { Text("「${conversation.title}」将被删除，此操作不可恢复。") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDelete(conversation.id)
+                        pendingDelete = null
+                    },
+                ) { Text("删除") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) { Text("取消") }
             },
         )
     }
