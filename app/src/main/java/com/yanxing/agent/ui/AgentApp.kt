@@ -1886,6 +1886,7 @@ private fun MemoryScreen(
     appContext: android.content.Context? = null,
 ) {
     var editingMemory by remember { mutableStateOf<Memory?>(null) }
+    var pendingDeleteMemory by remember { mutableStateOf<Memory?>(null) }
     var categoryFilter by remember { mutableStateOf<String?>(null) }
     var confirmClearMemories by remember { mutableStateOf(false) }
     val categories = remember(memories) { memories.map { it.category }.distinct().sorted() }
@@ -1970,7 +1971,7 @@ private fun MemoryScreen(
                                     color = MaterialTheme.colorScheme.primary
                                 )
                             }
-                            TextButton(onClick = { onDelete(memory.id) }) { Text("删除") }
+                            TextButton(onClick = { pendingDeleteMemory = memory }) { Text("删除") }
                             TextButton(onClick = { editingMemory = memory }) { Text("编辑") }
                         }
                     }
@@ -2045,6 +2046,26 @@ private fun MemoryScreen(
             },
             dismissButton = {
                 TextButton(onClick = { editingMemory = null }) { Text("取消") }
+            },
+        )
+    }
+
+    // 删除单条记忆确认
+    pendingDeleteMemory?.let { memory ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { pendingDeleteMemory = null },
+            title = { Text("删除这条记忆？") },
+            text = { Text("记忆将被删除，此操作不可恢复。") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDelete(memory.id)
+                        pendingDeleteMemory = null
+                    },
+                ) { Text("删除") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDeleteMemory = null }) { Text("取消") }
             },
         )
     }
