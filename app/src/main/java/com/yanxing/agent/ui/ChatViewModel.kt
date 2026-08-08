@@ -488,7 +488,8 @@ class ChatViewModel @Inject constructor(
     /** 行动模式入口：把用户消息作为任务，读屏后让 AI 规划动作（第一轮决策） */
     private fun startActionTask(goal: String) {
         if (!ScreenReaderAccessibilityService.isConnected) {
-            _uiState.update { it.copy(draft = "", error = "请先在设置中开启无障碍服务") }
+            // 保留用户输入，仅提示错误
+            _uiState.update { it.copy(error = "请先在设置中开启无障碍服务") }
             return
         }
         actionGoal = goal
