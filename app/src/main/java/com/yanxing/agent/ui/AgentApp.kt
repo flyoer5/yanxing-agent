@@ -168,7 +168,9 @@ fun AgentApp(
                     if (selectedTab == 0) {
                         val currentTitle = state.conversations
                             .find { it.id == state.selectedConversationId }?.title ?: "言行 Agent"
-                        Column {
+                        Column(
+                            modifier = Modifier.clickable { showSessions = true }
+                        ) {
                             Text(currentTitle, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(
                                 text = state.model.ifBlank { "未配置模型（点击设置）" },
