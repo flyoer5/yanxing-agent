@@ -51,6 +51,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -1427,12 +1428,18 @@ private fun MemoryScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ActionLogScreen(
     logs: List<ActionLogEntity>,
     onClearAll: () -> Unit,
     modifier: Modifier = Modifier,
+    appContext: android.content.Context? = null,
 ) {
+    var onlyFailures by remember { mutableStateOf(false) }
+    val shownLogs = remember(logs, onlyFailures) {
+        if (onlyFailures) logs.filter { it.status == "failed" } else logs
+    }
     val context = LocalContext.current
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -1456,11 +1463,31 @@ private fun ActionLogScreen(
         }
         Spacer(Modifier.height(12.dp))
 
+        // 失败筛选开关
+        if (logs.isNotEmpty()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                androidx.compose.material3.FilterChip(
+                    selected = onlyFailures,
+                    onClick = { onlyFailures = !onlyFailures },
+                    label = { Text("仅看失败") },
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = if (onlyFailures) "${shownLogs.size} 条失败记录" else "共 ${logs.size} 条",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+
         if (logs.isEmpty()) {
             PlaceholderScreen("暂无操作日志", Modifier.fillMaxWidth().weight(1f))
+        } else if (shownLogs.isEmpty()) {
+            PlaceholderScreen("筛选后无失败记录", Modifier.fillMaxWidth().weight(1f))
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(logs, key = { it.id }) { log ->
+                items(shownLogs, key = { it.id }) { log ->
                     ActionLogItem(log)
                 }
             }
