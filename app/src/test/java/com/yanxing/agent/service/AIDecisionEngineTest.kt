@@ -132,4 +132,31 @@ class AIDecisionEngineTest {
         assertEquals(1, sequence.actions.size)
         assertTrue(sequence.actions[0] is AIDecisionEngine.Action.Click)
     }
+
+    @Test
+    fun `continuation prompt includes last result when provided`() {
+        val prompt = AIDecisionEngine.generateContinuationPrompt(
+            goal = "打开设置",
+            currentScreen = "屏幕内容",
+            lastResult = "✅ 点击成功",
+            round = 2,
+            maxRounds = 5,
+        )
+        assertTrue(prompt.contains("任务目标：打开设置"))
+        assertTrue(prompt.contains("第 2 轮（上限 5 轮）"))
+        assertTrue(prompt.contains("上一轮执行结果：✅ 点击成功"))
+    }
+
+    @Test
+    fun `continuation prompt uses bounded screen summary`() {
+        // 长屏幕文本应被截断以避免 token 爆炸
+        val longScreen = "A".repeat(10_000)
+        val prompt = AIDecisionEngine.generateContinuationPrompt(
+            goal = "目标",
+            currentScreen = longScreen,
+            round = 1,
+            maxRounds = 3,
+        )
+        assertTrue(prompt.length < 6_000)
+    }
 }
