@@ -2166,6 +2166,7 @@ private fun ActionLogScreen(
     var onlyFailures by remember { mutableStateOf(false) }
     var packageFilter by remember { mutableStateOf<String?>(null) }
     var confirmClearLogs by remember { mutableStateOf(false) }
+    var pendingClearPackage by remember { mutableStateOf<String?>(null) }
     val packages = remember(logs) { logs.map { it.packageName }.distinct().sorted() }
     val shownLogs = remember(logs, onlyFailures, packageFilter) {
         logs.filter {
@@ -2256,7 +2257,7 @@ private fun ActionLogScreen(
                 }
                 if (packageFilter != null) {
                     item {
-                        TextButton(onClick = { onClearPackage(packageFilter!!) }) {
+                        TextButton(onClick = { pendingClearPackage = packageFilter }) {
                             Text("清空该应用", color = MaterialTheme.colorScheme.error)
                         }
                     }
@@ -2294,6 +2295,26 @@ private fun ActionLogScreen(
             },
             dismissButton = {
                 TextButton(onClick = { confirmClearLogs = false }) { Text("取消") }
+            },
+        )
+    }
+
+    // 清空该应用日志确认
+    pendingClearPackage?.let { packageName ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { pendingClearPackage = null },
+            title = { Text("清空该应用日志？") },
+            text = { Text("将删除「$packageName」的全部操作日志，此操作不可恢复。") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onClearPackage(packageName)
+                        pendingClearPackage = null
+                    },
+                ) { Text("清空") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingClearPackage = null }) { Text("取消") }
             },
         )
     }
