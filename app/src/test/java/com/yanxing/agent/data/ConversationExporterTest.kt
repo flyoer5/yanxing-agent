@@ -1,6 +1,7 @@
 package com.yanxing.agent.data
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -61,6 +62,21 @@ class ConversationExporterTest {
         assertTrue(text.contains("指令一"))
         assertTrue(text.contains("回复一"))
         assertTrue(text.contains("指令二"))
+    }
+
+    @Test
+    fun `blank content messages omit content line`() {
+        val text = formatConversation(
+            title = "会话",
+            messages = listOf(
+                ChatMessage("a1", "assistant", "有内容"),
+                ChatMessage("b1", "user", "   "),
+            ),
+        )
+        // 空白内容消息不打印内容行，但角色标签仍保留
+        assertTrue(text.contains("【我】"))
+        assertFalse(text.lines().any { it.isBlank() })
+        assertTrue(text.contains("有内容"))
     }
 
     @Test

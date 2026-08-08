@@ -205,7 +205,9 @@ fun formatConversation(title: String, messages: List<ChatMessage>): String {
             val attachmentNote = if (message.attachments.isEmpty()) "" else
                 " [附件 ${message.attachments.size} 个]"
             appendLine("【$role】$attachmentNote")
-            appendLine(message.content)
+            if (message.content.isNotBlank()) {
+                appendLine(message.content)
+            }
             appendLine("-".repeat(24))
         }
     }.trimEnd()
