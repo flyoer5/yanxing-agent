@@ -1651,6 +1651,14 @@ private fun SessionsDialog(
     var renameTarget by remember { mutableStateOf<Conversation?>(null) }
     var renameGroupTarget by remember { mutableStateOf<ConversationGroup?>(null) }
     var pendingDelete by remember { mutableStateOf<Conversation?>(null) }
+    // 相对时间每分钟刷新
+    var timeTick by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(60_000L)
+            timeTick++
+        }
+    }
     var newGroupName by remember { mutableStateOf("") }
     var searchQuery by remember { mutableStateOf("") }
     var groupFilter by remember { mutableStateOf<String?>(null) }
@@ -1782,7 +1790,7 @@ private fun SessionsDialog(
                                         maxLines = 1,
                                     )
                                     Text(
-                                        text = formatRelativeTime(conversation.updatedAt),
+                                        text = remember(timeTick) { formatRelativeTime(conversation.updatedAt) },
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
