@@ -408,7 +408,11 @@ private fun ChatScreen(
     val micPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
-        if (granted) onVoiceInput()
+        if (granted) {
+            onVoiceInput()
+        } else {
+            coroutineScope.launch { onShowSnackbar("需要录音权限才能使用语音输入") }
+        }
     }
 
     LaunchedEffect(state.messages.size, state.inProgressReply) {
