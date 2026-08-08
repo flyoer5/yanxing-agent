@@ -70,6 +70,15 @@ fun resolveSnapX(currentX: Int, screenWidth: Int, windowWidth: Int): Int {
 }
 
 /**
+ * 悬浮窗垂直范围限制：将 y 限制在 [0, screenHeight - windowHeight]。
+ * 防止悬浮窗被拖出屏幕顶部/底部（X 轴靠吸附，Y 轴靠此 clamp）。
+ */
+fun clampWindowY(currentY: Int, screenHeight: Int, windowHeight: Int): Int {
+    val maxY = (screenHeight - windowHeight).coerceAtLeast(0)
+    return currentY.coerceIn(0, maxY)
+}
+
+/**
  * 悬浮窗实时进度显示
  * 显示执行状态、成功/失败计数、控制按钮
  */
@@ -282,7 +291,11 @@ class FloatingProgressOverlay(private val context: Context) {
                     }
                     android.view.MotionEvent.ACTION_MOVE -> {
                         params.x = windowStart[0] + (dragStart[0] - event.rawX).toInt()
-                        params.y = windowStart[1] + (event.rawY - dragStart[1]).toInt()
+                        params.y = clampWindowY(
+                            windowStart[1] + (event.rawY - dragStart[1]).toInt(),
+                            context.resources.displayMetrics.heightPixels,
+                            params.height,
+                        )
                         windowManager.updateViewLayout(cardView, params)
                         true
                     }

@@ -72,4 +72,16 @@ class OverlayThemeTest {
         assertEquals(0, resolveSnapX(currentX = 50, screenWidth = 300, windowWidth = 400))
         assertEquals(0, resolveSnapX(currentX = -20, screenWidth = 300, windowWidth = 400))
     }
+
+    @Test
+    fun `clamp window y keeps overlay on screen`() {
+        // 负值 clamp 到 0（顶部）
+        assertEquals(0, clampWindowY(currentY = -50, screenHeight = 800, windowHeight = 400))
+        // 正常范围内不变
+        assertEquals(200, clampWindowY(currentY = 200, screenHeight = 800, windowHeight = 400))
+        // 超出底部 clamp 到 maxY
+        assertEquals(400, clampWindowY(currentY = 900, screenHeight = 800, windowHeight = 400))
+        // 窗口比屏幕还高时 maxY=0，只能贴顶
+        assertEquals(0, clampWindowY(currentY = 100, screenHeight = 300, windowHeight = 400))
+    }
 }
