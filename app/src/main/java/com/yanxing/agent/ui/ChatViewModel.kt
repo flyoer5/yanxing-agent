@@ -69,6 +69,11 @@ class ChatViewModel @Inject constructor(
     private val webSearchClient: WebSearchClient,
 ) : ViewModel() {
 
+    companion object {
+        /** 单次最多附件数量 */
+        const val MAX_ATTACHMENTS = 9
+    }
+
     // ===== 状态管理 =====
     private val currentConversationId = MutableStateFlow("")
     private val _uiState = MutableStateFlow(ChatUiState())
@@ -145,7 +150,12 @@ class ChatViewModel @Inject constructor(
     // ===== 附件管理 =====
 
     fun addAttachment(attachment: Attachment) {
-        _uiState.update { it.copy(pendingAttachments = it.pendingAttachments + attachment) }
+        val current = uiState.value.pendingAttachments
+        if (current.size >= MAX_ATTACHMENTS) {
+            _uiState.update { it.copy(error = "最多同时发送 $MAX_ATTACHMENTS 个附件") }
+            return
+        }
+        _uiState.update { it.copy(pendingAttachments = current + attachment) }
     }
 
     fun removeAttachment(index: Int) {
