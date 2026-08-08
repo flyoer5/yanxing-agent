@@ -834,6 +834,7 @@ private fun SettingsScreen(
     onSave: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val settingsContext = LocalContext.current
     Column(
         modifier = modifier.fillMaxSize().padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -843,7 +844,9 @@ private fun SettingsScreen(
         ModelFields(state, onBaseUrlChanged, onApiKeyChanged, onModelChanged)
         SearchFields(state, onSearchApiKeyChanged, onToggleSearch)
         SystemFeaturesFields(state, onToggleFloatingWindow, onSetRootAuthorization)
-        ActionModeFields(state, onToggleActionMode, onStartActionMode)
+        ActionModeFields(state, onToggleActionMode, onStartActionMode) {
+            runCatching { settingsContext.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+        }
         Button(onClick = onSave, modifier = Modifier.fillMaxWidth()) { Text("保存配置") }
     }
 }
@@ -1146,6 +1149,7 @@ private fun SettingsDialog(
     onSave: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val dialogContext = LocalContext.current
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("模型设置") },
@@ -1154,7 +1158,9 @@ private fun SettingsDialog(
                 ModelFields(state, onBaseUrlChanged, onApiKeyChanged, onModelChanged)
                 SearchFields(state, onSearchApiKeyChanged, onToggleSearch)
                 SystemFeaturesFields(state, onToggleFloatingWindow, onSetRootAuthorization)
-                ActionModeFields(state, onToggleActionMode, onStartActionMode)
+                ActionModeFields(state, onToggleActionMode, onStartActionMode) {
+            runCatching { dialogContext.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+        }
             }
         },
         confirmButton = { Button(onClick = onSave) { Text("保存") } },
