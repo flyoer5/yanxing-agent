@@ -971,7 +971,9 @@ private fun SettingsScreen(
         Text("支持任意 OpenAI 兼容 API。Key 使用 Android Keystore 加密保存。", color = MaterialTheme.colorScheme.onSurfaceVariant)
         ModelFields(state, onBaseUrlChanged, onApiKeyChanged, onModelChanged)
         SearchFields(state, onSearchApiKeyChanged, onToggleSearch)
-        SystemFeaturesFields(state, onToggleFloatingWindow, onSetRootAuthorization)
+        SystemFeaturesFields(state, onToggleFloatingWindow, onSetRootAuthorization) {
+            runCatching { settingsContext.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+        }
         ActionModeFields(state, onToggleActionMode, onStartActionMode) {
             runCatching { settingsContext.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
         }
@@ -1081,6 +1083,7 @@ private fun SystemFeaturesFields(
     state: ChatUiState,
     onToggleFloatingWindow: () -> Unit,
     onSetRootAuthorization: (Boolean) -> Unit,
+    onOpenAccessibility: () -> Unit,
 ) {
     var showRootConfirmation by remember { mutableStateOf(false) }
 
@@ -1104,12 +1107,25 @@ private fun SystemFeaturesFields(
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    // 无障碍服务状态
+    // 无障碍服务状态（未启用时可点击跳转设置）
     Row(
-        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp)
+            .then(
+                if (!state.accessibilityEnabled) {
+                    Modifier.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) { onOpenAccessibility() }
+                } else Modifier,
+            ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("无障碍服务", modifier = Modifier.weight(1f))
+        Text(
+            text = if (state.accessibilityEnabled) "无障碍服务" else "无障碍服务（点击开启）",
+            modifier = Modifier.weight(1f),
+        )
         Text(
             text = if (state.accessibilityEnabled) "已启用" else "未启用",
             style = MaterialTheme.typography.bodyMedium,
@@ -1365,7 +1381,9 @@ private fun SettingsDialog(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 ModelFields(state, onBaseUrlChanged, onApiKeyChanged, onModelChanged)
                 SearchFields(state, onSearchApiKeyChanged, onToggleSearch)
-                SystemFeaturesFields(state, onToggleFloatingWindow, onSetRootAuthorization)
+                SystemFeaturesFields(state, onToggleFloatingWindow, onSetRootAuthorization) {
+                    runCatching { dialogContext.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+                }
                 ActionModeFields(state, onToggleActionMode, onStartActionMode) {
             runCatching { dialogContext.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
         }
