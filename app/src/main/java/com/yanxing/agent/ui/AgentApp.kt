@@ -2160,6 +2160,13 @@ private fun ActionLogScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (onlyFailures || packageFilter != null) {
+                    Spacer(Modifier.width(4.dp))
+                    TextButton(onClick = {
+                        onlyFailures = false
+                        packageFilter = null
+                    }) { Text("重置筛选") }
+                }
             }
             Spacer(Modifier.height(8.dp))
         }
