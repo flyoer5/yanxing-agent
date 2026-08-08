@@ -73,7 +73,7 @@ object AIDecisionEngine {
 4. query 必须是当前屏幕上真实存在的文本或描述
 5. 屏幕内容无法判断进展时返回 done:true 并说明原因，避免死循环""")
             appendLine("\n任务目标：$goal")
-            lastResult?.let { appendLine("\n上一轮执行结果：\n$it") }
+            lastResult?.let { appendLine("\n上一轮执行结果：\n${it.take(4000)}") }
             appendLine("\n当前屏幕内容：")
             appendLine(currentScreen.take(4000))
         }

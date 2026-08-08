@@ -159,4 +159,16 @@ class AIDecisionEngineTest {
         )
         assertTrue(prompt.content.orEmpty().length < 6_000)
     }
+
+    @Test
+    fun `continuation prompt truncates long last result`() {
+        val prompt = AIDecisionEngine.generateContinuationPrompt(
+            goal = "目标",
+            currentScreen = "屏幕",
+            lastResult = "A".repeat(10_000),
+            round = 1,
+            maxRounds = 3,
+        )
+        assertTrue(prompt.content.orEmpty().length < 6_000)
+    }
 }
