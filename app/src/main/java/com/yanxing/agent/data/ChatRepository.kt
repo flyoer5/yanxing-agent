@@ -268,7 +268,7 @@ fun formatMemories(memories: List<Memory>): String {
         appendLine("共 ${memories.size} 条记忆")
         appendLine("=".repeat(32))
         memories.forEachIndexed { index, memory ->
-            appendLine("[${index + 1}] ${memory.content}")
+            appendLine("[${index + 1}] ${memory.content.trim().ifBlank { "（无内容）" }}")
             appendLine("分类：${memory.category}")
             if (memory.isSensitive) appendLine("⚠️ 敏感记忆")
             appendLine("-".repeat(24))

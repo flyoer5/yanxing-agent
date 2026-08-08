@@ -53,4 +53,10 @@ class MemoryExporterTest {
         )
         assertTrue(!text.contains("敏感"))
     }
+
+    @Test
+    fun `blank content uses placeholder`() {
+        val text = formatMemories(listOf(Memory("m1", "   ", "通用", false, 0)))
+        assertTrue(text.contains("（无内容）"))
+    }
 }
