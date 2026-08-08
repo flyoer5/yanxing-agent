@@ -1930,7 +1930,12 @@ private fun MemoryScreen(
             TextButton(onClick = { addingMemory = true }) { Text("新增") }
             if (memories.isNotEmpty()) {
                 TextButton(onClick = {
-                    val text = formatMemories(shownMemories)
+                    val text = buildString {
+                        appendLine(formatMemories(shownMemories))
+                        if (shownMemories.size < memories.size) {
+                            append("\n（已按筛选导出 ${shownMemories.size}/${memories.size} 条）")
+                        }
+                    }
                     val intent = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
                         putExtra(Intent.EXTRA_TEXT, text)
