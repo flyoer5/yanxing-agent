@@ -12,6 +12,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -73,11 +74,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateInt
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -450,7 +446,13 @@ private fun ChatScreen(
         } else {
             LazyColumn(
                 state = listState,
-                modifier = Modifier.weight(1f).fillMaxWidth(),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) { keyboardController?.hide() },
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -636,19 +638,16 @@ private fun ChatScreen(
                 }
                 if (state.isSending && state.inProgressReply.isNotEmpty()) {
                     item(key = "typing-indicator") {
-                        // 打字指示：三点循环动画
-                        val transition = rememberInfiniteTransition(label = "typing")
-                        val dots by transition.animateInt(
-                            initialValue = 0,
-                            targetValue = 3,
-                            animationSpec = infiniteRepeatable(
-                                animation = tween(450),
-                                repeatMode = RepeatMode.Restart,
-                            ),
-                            label = "dots",
-                        )
+                        // 打字指示：三点循环更新（LaunchedEffect 简单循环，避免动画 API 版本差异）
+                        var dotCount by remember { mutableStateOf(0) }
+                        LaunchedEffect(Unit) {
+                            while (true) {
+                                delay(450L)
+                                dotCount = (dotCount + 1) % 4
+                            }
+                        }
                         Text(
-                            text = "正在生成" + ".".repeat(dots % 4),
+                            text = "正在生成" + ".".repeat(dotCount),
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
