@@ -47,8 +47,8 @@ android {
         applicationId = "com.yanxing.agent"
         minSdk = 24
         targetSdk = 35
-        versionCode = 35
-        versionName = "0.35.0"
+        versionCode = 40
+        versionName = "0.40.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
