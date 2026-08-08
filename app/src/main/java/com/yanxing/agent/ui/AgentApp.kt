@@ -578,11 +578,17 @@ private fun ChatScreen(
             verticalAlignment = Alignment.Bottom,
         ) {
             // 图片按钮
-            IconButton(onClick = { imagePickerLauncher.launch("image/*") }) {
+            IconButton(
+                onClick = { imagePickerLauncher.launch("image/*") },
+                enabled = !state.isSending,
+            ) {
                 Icon(Icons.Outlined.Image, contentDescription = "发送图片")
             }
             // 文件按钮
-            IconButton(onClick = { filePickerLauncher.launch(arrayOf("*/*")) }) {
+            IconButton(
+                onClick = { filePickerLauncher.launch(arrayOf("*/*")) },
+                enabled = !state.isSending,
+            ) {
                 Icon(Icons.Outlined.AttachFile, contentDescription = "发送文件")
             }
             // 语音输入按钮
