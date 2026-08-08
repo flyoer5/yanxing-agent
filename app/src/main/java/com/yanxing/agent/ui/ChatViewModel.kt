@@ -42,6 +42,18 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
+/** 记忆相关性排序（纯函数可测）：关键词匹配 + 项目/偏好分类加权，最多取 5 条 */
+fun relevantMemories(query: String, memories: List<Memory>): List<Memory> {
+    val terms = query.lowercase().split(Regex("[^\\p{L}\\p{N}]+"))
+        .filter { it.length >= 2 }
+        .toSet()
+    return memories.filter { memory ->
+        terms.any { term -> memory.content.lowercase().contains(term) } ||
+            (query.contains("项目") && memory.category == "项目") ||
+            (query.contains("喜欢") && memory.category == "偏好")
+    }.take(5)
+}
+
 class ChatViewModel @Inject constructor(
     @ApplicationContext private val _context: Context,
     private val repository: ChatRepository,
@@ -918,16 +930,6 @@ class ChatViewModel @Inject constructor(
         _uiState.update { it.copy(memoryNotice = memory) }
     }
 
-    private fun relevantMemories(query: String, memories: List<Memory>): List<Memory> {
-        val terms = query.lowercase().split(Regex("[^\\p{L}\\p{N}]+"))
-            .filter { it.length >= 2 }
-            .toSet()
-        return memories.filter { memory ->
-            terms.any { term -> memory.content.lowercase().contains(term) } ||
-                (query.contains("项目") && memory.category == "项目") ||
-                (query.contains("喜欢") && memory.category == "偏好")
-        }.take(5)
-    }
 
     private fun loadSettings() {
         RootShell.setAuthorized(settings.rootAuthorized)
