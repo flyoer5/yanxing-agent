@@ -720,7 +720,9 @@ private fun ChatScreen(
             ) {
                 androidx.compose.material3.SuggestionChip(
                     onClick = {
-                        listState.animateScrollToItem(state.messages.lastIndex)
+                        coroutineScope.launch {
+                            listState.animateScrollToItem(state.messages.lastIndex)
+                        }
                         showJumpToBottom = false
                     },
                     label = { Text("↓ 跳到最新消息") },
