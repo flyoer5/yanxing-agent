@@ -1671,6 +1671,12 @@ private fun SessionsDialog(
     var newGroupName by remember { mutableStateOf("") }
     var searchQuery by remember { mutableStateOf("") }
     var groupFilter by remember { mutableStateOf<String?>(null) }
+    // 分组被删除后重置失效筛选
+    LaunchedEffect(groups) {
+        if (groupFilter != null && groups.none { it.id == groupFilter }) {
+            groupFilter = null
+        }
+    }
     var contentMatchIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     LaunchedEffect(searchQuery) {
         if (searchQuery.isBlank()) {
