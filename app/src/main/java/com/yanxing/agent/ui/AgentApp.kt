@@ -9,6 +9,7 @@ import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -69,12 +70,15 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -213,6 +217,7 @@ fun AgentApp(
                 onConfirmAction = viewModel::confirmCurrentAction,
                 onStopAction = viewModel::stopAction,
                 onUndoAction = onUndoAction,
+                onShowSnackbar = { message -> snackbarHostState.showSnackbar(message) },
                 modifier = Modifier.padding(padding),
             )
             1 -> MemoryScreen(
@@ -290,9 +295,11 @@ private fun ChatScreen(
     onConfirmAction: (Boolean) -> Unit,
     onStopAction: () -> Unit,
     onUndoAction: () -> Unit,
+    onShowSnackbar: suspend (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
 
     // 图片选择器
@@ -355,7 +362,18 @@ private fun ChatScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(state.messages, key = { it.id }) { message -> MessageBubble(message) }
+                items(state.messages, key = { it.id }) { message ->
+                    MessageBubble(
+                        message = message,
+                        onCopy = { text ->
+                            val clipboard = LocalClipboardManager.current
+                            clipboard.setText(AnnotatedString(text))
+                            coroutineScope.launch {
+                                onShowSnackbar("已复制消息内容")
+                            }
+                        },
+                    )
+                }
 
                 // 行动模式的状态和屏幕内容显示
                 if (isActionMode) {
@@ -654,14 +672,25 @@ private fun AttachmentPreview(attachment: Attachment, onRemove: () -> Unit) {
 }
 
 @Composable
-private fun MessageBubble(message: ChatMessage, modifier: Modifier = Modifier) {
+private fun MessageBubble(
+    message: ChatMessage,
+    modifier: Modifier = Modifier,
+    onCopy: ((String) -> Unit)? = null,
+) {
     val isUser = message.role == "user"
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
     ) {
         Card(
-            modifier = Modifier.fillMaxWidth(if (isUser) 0.86f else 0.94f),
+            modifier = Modifier
+                .fillMaxWidth(if (isUser) 0.86f else 0.94f)
+                .then(
+                    if (onCopy != null) Modifier.combinedClickable(
+                        onClick = { onCopy(message.content) },
+                        onLongClick = { onCopy(message.content) },
+                    ) else Modifier,
+                ),
             shape = RoundedCornerShape(16.dp),
             colors = androidx.compose.material3.CardDefaults.cardColors(
                 containerColor = if (isUser) MaterialTheme.colorScheme.primaryContainer
