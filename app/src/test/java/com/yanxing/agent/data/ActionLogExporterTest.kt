@@ -27,6 +27,13 @@ class ActionLogExporterTest {
     )
 
     @Test
+    fun `timestamp is formatted as yyyy-MM-dd HH:mm:ss`() {
+        // 2023-11-14 22:13:20 UTC
+        val formatted = formatLogTimestamp(1_700_000_000_000L)
+        assertTrue(formatted.matches(Regex("""\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}""")), "实际输出: $formatted")
+    }
+
+    @Test
     fun `empty logs produce placeholder text`() {
         assertEquals("暂无操作日志", formatActionLogs(emptyList()))
     }

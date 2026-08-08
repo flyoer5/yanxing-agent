@@ -342,6 +342,8 @@ class FloatingProgressOverlay(private val context: Context) {
                 textSize = 13f
                 setTextColor(colors.bodyText)
                 setPadding(0, 4, 0, 8)
+                maxLines = 2
+                ellipsize = android.text.TextUtils.TruncateAt.END
             }
             currentTaskTextView = currentTaskText
 
@@ -350,6 +352,8 @@ class FloatingProgressOverlay(private val context: Context) {
                 textSize = 13f
                 setTextColor(colors.secondaryText)
                 setPadding(0, 2, 0, 8)
+                maxLines = 2
+                ellipsize = android.text.TextUtils.TruncateAt.END
             }
             lastResultTextView = lastResultText
 
@@ -358,6 +362,8 @@ class FloatingProgressOverlay(private val context: Context) {
                 textSize = 13f
                 setPadding(0, 2, 0, 8)
                 visibility = View.GONE
+                maxLines = 2
+                ellipsize = android.text.TextUtils.TruncateAt.END
             }
             noticeTextView = noticeText
 
