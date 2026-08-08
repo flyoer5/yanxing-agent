@@ -38,9 +38,10 @@ class ActionRunController(private val maxRounds: Int = DEFAULT_MAX_ROUNDS) {
     /** 是否还能进入下一轮决策：未被停止且未达轮次上限 */
     fun canContinue(): Boolean = !cancelled && round in 1 until maxRounds
 
-    /** 进入下一轮，返回新的轮次号 */
+    /** 进入下一轮，返回新的轮次号（不超过上限，防止轮次膨胀） */
     fun nextRound(): Int {
         if (cancelled) return round
+        if (round >= maxRounds) return round
         round++
         return round
     }

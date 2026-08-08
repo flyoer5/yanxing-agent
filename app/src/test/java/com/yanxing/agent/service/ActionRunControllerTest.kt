@@ -95,4 +95,25 @@ class ActionRunControllerTest {
     fun `未启动时停止返回 false`() {
         assertFalse(controller.cancel())
     }
+
+    @Test
+    fun `达到轮次上限后不再继续`() {
+        val capped = ActionRunController(maxRounds = 3)
+        capped.start() // round=1
+        capped.nextRound() // 2
+        capped.nextRound() // 3
+        assertEquals(3, capped.round)
+        // 已达上限：canContinue 应为 false（未停止，但无剩余轮次）
+        assertFalse(capped.canContinue())
+    }
+
+    @Test
+    fun `nextRound cannot exceed max rounds`() {
+        val capped = ActionRunController(maxRounds = 2)
+        capped.start() // round=1
+        capped.nextRound() // 2
+        capped.nextRound() // 仍为 2（不再增长，避免死循环膨胀）
+        capped.nextRound()
+        assertEquals(2, capped.round)
+    }
 }
