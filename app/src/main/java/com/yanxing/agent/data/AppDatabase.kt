@@ -115,6 +115,9 @@ interface MemoryDao {
     @Query("SELECT * FROM memories ORDER BY updatedAt DESC")
     fun observeAll(): Flow<List<MemoryEntity>>
 
+    @Query("SELECT * FROM memories WHERE id = :id LIMIT 1")
+    suspend fun findById(id: String): MemoryEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(memory: MemoryEntity)
 

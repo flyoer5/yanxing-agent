@@ -226,6 +226,7 @@ fun AgentApp(
             1 -> MemoryScreen(
                 memories = state.memories,
                 onDelete = viewModel::deleteMemory,
+                onUpdate = viewModel::updateMemory,
                 onClearAll = viewModel::clearAllMemories,
                 appContext = appContext,
                 modifier = Modifier.padding(padding),
@@ -1307,10 +1308,12 @@ private fun SessionsDialog(
 private fun MemoryScreen(
     memories: List<Memory>,
     onDelete: (String) -> Unit,
+    onUpdate: (id: String, content: String, category: String) -> Unit,
     onClearAll: () -> Unit,
     modifier: Modifier = Modifier,
     appContext: android.content.Context? = null,
 ) {
+    var editingMemory by remember { mutableStateOf<Memory?>(null) }
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
@@ -1351,11 +1354,53 @@ private fun MemoryScreen(
                                 )
                             }
                             TextButton(onClick = { onDelete(memory.id) }) { Text("删除") }
+                            TextButton(onClick = { editingMemory = memory }) { Text("编辑") }
                         }
                     }
                 }
             }
         }
+    }
+
+    // 编辑记忆对话框
+    editingMemory?.let { memory ->
+        var editContent by remember(memory.id) { mutableStateOf(memory.content) }
+        var editCategory by remember(memory.id) { mutableStateOf(memory.category) }
+        AlertDialog(
+            onDismissRequest = { editingMemory = null },
+            title = { Text("编辑记忆") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = editContent,
+                        onValueChange = { editContent = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("内容") },
+                        minLines = 2,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = editCategory,
+                        onValueChange = { editCategory = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("分类") },
+                        singleLine = true,
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onUpdate(memory.id, editContent, editCategory)
+                        editingMemory = null
+                    },
+                    enabled = editContent.isNotBlank(),
+                ) { Text("保存") }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingMemory = null }) { Text("取消") }
+            },
+        )
     }
 }
 

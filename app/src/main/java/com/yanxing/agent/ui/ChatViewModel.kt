@@ -224,6 +224,16 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch { repository.deleteAllMemories() }
     }
 
+    /** 编辑既有记忆（内容 + 分类） */
+    fun updateMemory(id: String, content: String, category: String) {
+        viewModelScope.launch {
+            val ok = repository.updateMemory(id, content, category)
+            if (!ok) {
+                _uiState.update { it.copy(error = "记忆更新失败（不存在或内容为空）") }
+            }
+        }
+    }
+
     fun clearAllActionLogs() {
         viewModelScope.launch { repository.deleteAllActionLogs() }
     }

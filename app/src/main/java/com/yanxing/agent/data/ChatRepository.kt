@@ -92,6 +92,20 @@ class ChatRepository @Inject constructor(
 
     suspend fun deleteMemory(id: String) = memoryDao.delete(id)
 
+    /** 更新既有记忆的内容/分类（upsert 覆盖，保留原 id） */
+    suspend fun updateMemory(id: String, content: String, category: String): Boolean {
+        val existing = memoryDao.findById(id) ?: return false
+        if (content.isBlank()) return false
+        val now = System.currentTimeMillis()
+        val updated = existing.copy(
+            content = content.trim(),
+            category = category,
+            updatedAt = now,
+        )
+        memoryDao.upsert(updated)
+        return true
+    }
+
     suspend fun deleteAllMemories() = memoryDao.deleteAll()
 
     // ===== 操作日志管理 =====
