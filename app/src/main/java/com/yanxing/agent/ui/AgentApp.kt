@@ -43,6 +43,7 @@ import androidx.compose.material.icons.outlined.Chat
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.List
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Public
@@ -225,7 +226,7 @@ fun AgentApp(
                 NavigationBarItem(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
-                    icon = { Icon(Icons.Outlined.Public, contentDescription = null) },
+                    icon = { Icon(Icons.Outlined.List, contentDescription = null) },
                     label = { Text("日志") },
                 )
                 NavigationBarItem(
