@@ -170,10 +170,17 @@ fun AgentApp(
                         Column {
                             Text(currentTitle, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(
-                                text = state.model.ifBlank { "未配置模型" },
+                                text = state.model.ifBlank { "未配置模型（点击设置）" },
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = if (state.model.isBlank()) {
+                                    MaterialTheme.colorScheme.error
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
                                 maxLines = 1,
+                                modifier = if (state.model.isBlank()) {
+                                    Modifier.clickable { showSettings = true }
+                                } else Modifier,
                             )
                         }
                     } else {
