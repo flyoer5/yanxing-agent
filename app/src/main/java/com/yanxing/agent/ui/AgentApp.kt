@@ -43,6 +43,7 @@ import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Send
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
@@ -1252,6 +1253,13 @@ private fun SessionsDialog(
     onDismiss: () -> Unit,
 ) {
     var newGroupName by remember { mutableStateOf("") }
+    var searchQuery by remember { mutableStateOf("") }
+    val filteredConversations = remember(conversations, searchQuery) {
+        if (searchQuery.isBlank()) conversations
+        else conversations.filter {
+            it.title.contains(searchQuery.trim(), ignoreCase = true)
+        }
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("会话") },
@@ -1279,8 +1287,23 @@ private fun SessionsDialog(
                         }
                     },
                 )
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("搜索会话") },
+                    singleLine = true,
+                    leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+                )
+                if (filteredConversations.isEmpty()) {
+                    Text(
+                        text = if (searchQuery.isBlank()) "暂无会话" else "没有匹配的会话",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(8.dp),
+                    )
+                }
                 LazyColumn(modifier = Modifier.height(280.dp)) {
-                    items(conversations, key = { it.id }) { conversation ->
+                    items(filteredConversations, key = { it.id }) { conversation ->
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
