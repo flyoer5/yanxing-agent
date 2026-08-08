@@ -1773,6 +1773,7 @@ private fun MemoryScreen(
 ) {
     var editingMemory by remember { mutableStateOf<Memory?>(null) }
     var categoryFilter by remember { mutableStateOf<String?>(null) }
+    var confirmClearMemories by remember { mutableStateOf(false) }
     val categories = remember(memories) { memories.map { it.category }.distinct().sorted() }
     val shownMemories = remember(memories, categoryFilter) {
         if (categoryFilter == null) memories
@@ -1796,7 +1797,10 @@ private fun MemoryScreen(
                     }
                 }) { Text("导出") }
             }
-            TextButton(onClick = onClearAll, enabled = memories.isNotEmpty()) { Text("清空") }
+            TextButton(
+                onClick = { confirmClearMemories = true },
+                enabled = memories.isNotEmpty(),
+            ) { Text("清空") }
         }
         Spacer(Modifier.height(12.dp))
         if (memories.isEmpty()) {
@@ -1927,6 +1931,26 @@ private fun MemoryScreen(
             },
             dismissButton = {
                 TextButton(onClick = { editingMemory = null }) { Text("取消") }
+            },
+        )
+    }
+
+    // 清空记忆确认
+    if (confirmClearMemories) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmClearMemories = false },
+            title = { Text("清空全部记忆？") },
+            text = { Text("所有长期记忆将被删除，此操作不可恢复。") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onClearAll()
+                        confirmClearMemories = false
+                    },
+                ) { Text("清空") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClearMemories = false }) { Text("取消") }
             },
         )
     }
