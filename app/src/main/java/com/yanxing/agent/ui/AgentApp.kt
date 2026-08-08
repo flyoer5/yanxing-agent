@@ -1367,6 +1367,12 @@ private fun MemoryScreen(
     appContext: android.content.Context? = null,
 ) {
     var editingMemory by remember { mutableStateOf<Memory?>(null) }
+    var categoryFilter by remember { mutableStateOf<String?>(null) }
+    val categories = remember(memories) { memories.map { it.category }.distinct().sorted() }
+    val shownMemories = remember(memories, categoryFilter) {
+        if (categoryFilter == null) memories
+        else memories.filter { it.category == categoryFilter }
+    }
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
@@ -1391,8 +1397,33 @@ private fun MemoryScreen(
         if (memories.isEmpty()) {
             PlaceholderScreen("还没有长期记忆", Modifier.fillMaxWidth().weight(1f))
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(memories, key = { it.id }) { memory ->
+            // 分类筛选
+            if (categories.size > 1) {
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    item {
+                        FilterChip(
+                            selected = categoryFilter == null,
+                            onClick = { categoryFilter = null },
+                            label = { Text("全部") },
+                        )
+                    }
+                    items(categories) { category ->
+                        FilterChip(
+                            selected = categoryFilter == category,
+                            onClick = { categoryFilter = category },
+                            label = { Text(category) },
+                        )
+                    }
+                }
+            }
+            if (shownMemories.isEmpty()) {
+                PlaceholderScreen("该分类下暂无记忆", Modifier.fillMaxWidth().weight(1f))
+            } else {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(shownMemories, key = { it.id }) { memory ->
                     Card(modifier = Modifier.fillMaxWidth()) {
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(12.dp),
