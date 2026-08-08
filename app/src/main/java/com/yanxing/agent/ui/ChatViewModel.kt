@@ -307,7 +307,8 @@ class ChatViewModel @Inject constructor(
         val text = uiState.value.draft.trim()
         val attachments = uiState.value.pendingAttachments
         if (text.isEmpty() && attachments.isEmpty()) return
-        if (uiState.value.isSending) return
+        // 行动执行中允许插话（发送普通对话），仅普通生成中拦截
+        if (uiState.value.isSending && uiState.value.actionStatus is ActionStatus.Idle) return
         val current = uiState.value
         if (current.baseUrl.isBlank() || current.model.isBlank() || current.apiKey.isBlank()) {
             _uiState.update { it.copy(error = "请先在设置中填写 API 地址、Key 和模型") }
@@ -391,12 +392,21 @@ class ChatViewModel @Inject constructor(
             result.onSuccess {
                 repository.appendMessage(conversationId, "assistant", assistant.toString())
                 generationJob = null
-                _uiState.update { it.copy(isSending = false, inProgressReply = "", searchResultCount = 0) }
+                // 行动执行中插话完成：恢复行动的发送态，不误清
+                _uiState.update {
+                    val stillActing = it.actionStatus !is ActionStatus.Idle
+                    it.copy(
+                        isSending = stillActing,
+                        inProgressReply = "",
+                        searchResultCount = 0,
+                    )
+                }
             }.onFailure { error ->
                 generationJob = null
                 _uiState.update {
+                    val stillActing = it.actionStatus !is ActionStatus.Idle
                     it.copy(
-                        isSending = false,
+                        isSending = stillActing,
                         inProgressReply = "",
                         searchResultCount = 0,
                         error = error.message ?: "请求失败",
