@@ -375,6 +375,7 @@ private fun ChatScreen(
         }
     }
     val listState = rememberLazyListState()
+    var showJumpToBottom by remember { mutableStateOf(false) }
 
     // 图片选择器
     val imagePickerLauncher = rememberLauncherForActivityResult(
@@ -418,6 +419,9 @@ private fun ChatScreen(
             last >= (state.messages.lastIndex - 1)
         if (nearBottom && state.messages.isNotEmpty()) {
             listState.animateScrollToItem(state.messages.lastIndex)
+            showJumpToBottom = false
+        } else {
+            showJumpToBottom = state.messages.isNotEmpty()
         }
     }
 
@@ -696,6 +700,27 @@ private fun ChatScreen(
                         tint = MaterialTheme.colorScheme.onSecondaryContainer,
                     )
                 }
+            }
+        }
+
+        // 跳到底部浮钮（新消息到达且用户不在底部时）
+        if (showJumpToBottom) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                androidx.compose.material3.SuggestionChip(
+                    onClick = {
+                        listState.animateScrollToItem(state.messages.lastIndex)
+                        showJumpToBottom = false
+                    },
+                    label = { Text("↓ 跳到最新消息") },
+                    colors = androidx.compose.material3.SuggestionChipDefaults.suggestionChipColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    ),
+                )
             }
         }
 
