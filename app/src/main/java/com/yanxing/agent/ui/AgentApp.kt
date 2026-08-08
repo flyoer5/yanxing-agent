@@ -46,6 +46,8 @@ import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material.icons.outlined.Send
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Share
@@ -91,6 +93,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -1128,6 +1131,7 @@ private fun SearchFields(
     onToggleSearch: () -> Unit,
 ) {
     Text("联网搜索", style = MaterialTheme.typography.titleMedium)
+    var showSearchKey by remember { mutableStateOf(false) }
     OutlinedTextField(
         value = state.searchApiKey,
         onValueChange = onSearchApiKeyChanged,
@@ -1135,7 +1139,15 @@ private fun SearchFields(
         label = { Text("Tavily API Key") },
         placeholder = { Text("tvly-...") },
         singleLine = true,
-        visualTransformation = PasswordVisualTransformation(),
+        visualTransformation = if (showSearchKey) VisualTransformation.None else PasswordVisualTransformation(),
+        trailingIcon = {
+            IconButton(onClick = { showSearchKey = !showSearchKey }) {
+                Icon(
+                    if (showSearchKey) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                    contentDescription = if (showSearchKey) "隐藏搜索 Key" else "显示搜索 Key",
+                )
+            }
+        },
     )
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -1200,13 +1212,22 @@ private fun ModelFields(
             }
         }
     }
+    var showApiKey by remember { mutableStateOf(false) }
     OutlinedTextField(
         value = state.apiKey,
         onValueChange = onApiKeyChanged,
         modifier = Modifier.fillMaxWidth(),
         label = { Text("API Key") },
         singleLine = true,
-        visualTransformation = PasswordVisualTransformation(),
+        visualTransformation = if (showApiKey) VisualTransformation.None else PasswordVisualTransformation(),
+        trailingIcon = {
+            IconButton(onClick = { showApiKey = !showApiKey }) {
+                Icon(
+                    if (showApiKey) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                    contentDescription = if (showApiKey) "隐藏 API Key" else "显示 API Key",
+                )
+            }
+        },
     )
     var modelMenuOpen by remember { mutableStateOf(false) }
     val presetModels = listOf("gpt-4o-mini", "gpt-4o", "deepseek-chat", "claude-3-5-sonnet")
