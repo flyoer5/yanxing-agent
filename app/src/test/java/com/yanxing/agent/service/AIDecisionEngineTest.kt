@@ -142,9 +142,9 @@ class AIDecisionEngineTest {
             round = 2,
             maxRounds = 5,
         )
-        assertTrue(prompt.contains("任务目标：打开设置"))
-        assertTrue(prompt.contains("第 2 轮（上限 5 轮）"))
-        assertTrue(prompt.contains("上一轮执行结果：✅ 点击成功"))
+        assertTrue(prompt.content.orEmpty().contains("任务目标：打开设置"))
+        assertTrue(prompt.content.orEmpty().contains("第 2 轮（上限 5 轮）"))
+        assertTrue(prompt.content.orEmpty().contains("上一轮执行结果：✅ 点击成功"))
     }
 
     @Test
@@ -157,6 +157,6 @@ class AIDecisionEngineTest {
             round = 1,
             maxRounds = 3,
         )
-        assertTrue(prompt.length < 6_000)
+        assertTrue(prompt.content.orEmpty().length < 6_000)
     }
 }
