@@ -340,6 +340,18 @@ class ChatViewModel @Inject constructor(
 
     fun dismissMemoryNotice() = _uiState.update { it.copy(memoryNotice = null) }
 
+    /** 重发用户消息：复用其内容与附件重新走发送链路（AI 重新回复） */
+    fun resendMessage(message: ChatMessage) {
+        if (uiState.value.isSending && uiState.value.actionStatus is ActionStatus.Idle) {
+            _uiState.update { it.copy(error = "正在生成回复，请稍后再重发") }
+            return
+        }
+        _uiState.update {
+            it.copy(draft = message.content, pendingAttachments = message.attachments)
+        }
+        send()
+    }
+
     fun send() {
         val text = uiState.value.draft.trim()
         val attachments = uiState.value.pendingAttachments

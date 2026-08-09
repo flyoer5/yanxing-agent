@@ -551,6 +551,9 @@ private fun ChatScreen(
                                 onShowSnackbar("已复制消息内容")
                             }
                         },
+                        onResend = if (message.role == "user") {
+                            { viewModel.resendMessage(message) }
+                        } else null,
                     )
                 }
 
@@ -970,6 +973,7 @@ private fun MessageBubble(
     message: ChatMessage,
     modifier: Modifier = Modifier,
     onCopy: ((String) -> Unit)? = null,
+    onResend: (() -> Unit)? = null,
 ) {
     val isUser = message.role == "user"
     Row(
@@ -1042,6 +1046,20 @@ private fun MessageBubble(
                         text = message.content,
                         style = MaterialTheme.typography.bodyLarge,
                     )
+                }
+                // 用户消息重发按钮
+                if (isUser && onResend != null) {
+                    TextButton(
+                        onClick = onResend,
+                        modifier = Modifier.align(Alignment.End).padding(top = 2.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                    ) {
+                        Text(
+                            "重发",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 }
             }
         }
