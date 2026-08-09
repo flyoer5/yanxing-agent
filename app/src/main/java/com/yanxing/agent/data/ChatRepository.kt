@@ -37,7 +37,7 @@ class ChatRepository @Inject constructor(
     suspend fun ensureConversation(id: String, title: String = "新对话") {
         if (conversationDao.findById(id) == null) {
             val now = System.currentTimeMillis()
-            conversationDao.upsert(ConversationEntity(id, title, null, now, now))
+            conversationDao.upsert(ConversationEntity(id = id, title = title, createdAt = now, updatedAt = now))
         }
     }
 
@@ -79,6 +79,13 @@ class ChatRepository @Inject constructor(
         if (title.isBlank()) return false
         val current = conversationDao.findById(conversationId) ?: return false
         conversationDao.upsert(current.copy(title = title, updatedAt = System.currentTimeMillis()))
+        return true
+    }
+
+    /** 置顶/取消置顶会话 */
+    suspend fun setConversationPinned(conversationId: String, pinned: Boolean): Boolean {
+        if (conversationDao.findById(conversationId) == null) return false
+        conversationDao.setPinned(conversationId, pinned)
         return true
     }
 
@@ -180,8 +187,13 @@ data class Conversation(
     val id: String,
     val title: String,
     val groupId: String?,
+    val pinned: Boolean = false,
     val updatedAt: Long,
 )
+
+/** 会话置顶优先排序（置顶在前，内部按更新时间倒序；顶层纯函数可单测） */
+fun sortConversations(conversations: List<Conversation>): List<Conversation> =
+    conversations.sortedWith(compareByDescending<Conversation> { it.pinned }.thenByDescending { it.updatedAt })
 
 data class ConversationGroup(
     val id: String,
@@ -276,7 +288,7 @@ fun formatMemories(memories: List<Memory>): String {
     }.trimEnd()
 }
 
-private fun ConversationEntity.toDomain() = Conversation(id, title, groupId, updatedAt)
+private fun ConversationEntity.toDomain() = Conversation(id, title, groupId, pinned, updatedAt)
 private fun GroupEntity.toDomain() = ConversationGroup(id, name)
 private fun MessageEntity.toDomain(): ChatMessage {
     val atts = mutableListOf<Attachment>()

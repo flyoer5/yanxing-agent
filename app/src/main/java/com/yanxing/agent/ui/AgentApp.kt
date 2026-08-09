@@ -341,6 +341,7 @@ fun AgentApp(
             onSelect = { viewModel.switchConversation(it); showSessions = false },
             onDelete = viewModel::deleteConversation,
                 onRename = viewModel::renameConversation,
+                onTogglePin = viewModel::togglePinConversation,
                 onSearchByContent = viewModel::searchConversationsByContent,
             onCreateGroup = viewModel::createGroup,
             onAssignGroup = viewModel::assignCurrentConversation,
@@ -1652,6 +1653,7 @@ private fun SessionsDialog(
     onSelect: (String) -> Unit,
     onDelete: (String) -> Unit,
     onRename: (id: String, newTitle: String) -> Unit,
+    onTogglePin: (String) -> Unit,
     onSearchByContent: (keyword: String, onResult: (List<String>) -> Unit) -> Unit,
     onCreateGroup: (String) -> Unit,
     onDeleteGroup: (String) -> Unit,
@@ -1815,6 +1817,9 @@ private fun SessionsDialog(
                             }
                             TextButton(onClick = { pendingDelete = conversation }) { Text("删除") }
                             TextButton(onClick = { renameTarget = conversation }) { Text("重命名") }
+                            TextButton(onClick = { onTogglePin(conversation.id) }) {
+                                Text(if (conversation.pinned) "取消置顶" else "置顶")
+                            }
                         }
                     }
                 }

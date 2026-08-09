@@ -23,6 +23,7 @@ data class ConversationEntity(
     @PrimaryKey val id: String,
     val title: String,
     val groupId: String? = null,
+    val pinned: Boolean = false,
     val createdAt: Long,
     val updatedAt: Long,
 )
@@ -82,10 +83,10 @@ interface GroupDao {
 
 @Dao
 interface ConversationDao {
-    @Query("SELECT * FROM conversations ORDER BY updatedAt DESC")
+    @Query("SELECT * FROM conversations ORDER BY pinned DESC, updatedAt DESC")
     fun observeAll(): Flow<List<ConversationEntity>>
 
-    @Query("SELECT * FROM conversations ORDER BY updatedAt DESC")
+    @Query("SELECT * FROM conversations ORDER BY pinned DESC, updatedAt DESC")
     suspend fun findAll(): List<ConversationEntity>
 
     @Query("SELECT * FROM conversations WHERE id = :id LIMIT 1")
@@ -96,6 +97,9 @@ interface ConversationDao {
 
     @Query("UPDATE conversations SET groupId = :groupId WHERE id = :conversationId")
     suspend fun setGroup(conversationId: String, groupId: String?)
+
+    @Query("UPDATE conversations SET pinned = :pinned WHERE id = :conversationId")
+    suspend fun setPinned(conversationId: String, pinned: Boolean)
 
     @Query("DELETE FROM conversations WHERE id = :id")
     suspend fun delete(id: String)
@@ -163,7 +167,7 @@ interface ActionLogDao {
 
 @Database(
     entities = [GroupEntity::class, ConversationEntity::class, MessageEntity::class, MemoryEntity::class, ActionLogEntity::class],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -172,4 +176,13 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun messageDao(): MessageDao
     abstract fun memoryDao(): MemoryDao
     abstract fun actionLogDao(): ActionLogDao
+
+    companion object {
+        /** v3 → v4：conversations 表新增 pinned 置顶标记（默认 0） */
+        val MIGRATION_3_4 = object : androidx.room.migration.Migration(3, 4) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE conversations ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+    }
 }

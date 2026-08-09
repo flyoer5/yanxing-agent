@@ -257,6 +257,15 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    /** 置顶/取消置顶会话 */
+    fun togglePinConversation(conversationId: String) {
+        viewModelScope.launch {
+            val current = uiState.value.conversations.find { it.id == conversationId } ?: return@launch
+            val ok = repository.setConversationPinned(conversationId, !current.pinned)
+            if (!ok) _uiState.update { it.copy(error = "置顶失败（会话不存在）") }
+        }
+    }
+
     /** 按消息内容搜索会话 id（供会话搜索框使用） */
     fun searchConversationsByContent(keyword: String, onResult: (List<String>) -> Unit) {
         if (keyword.isBlank()) return
