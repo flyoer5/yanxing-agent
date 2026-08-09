@@ -253,6 +253,7 @@ fun AgentApp(
                 state = state,
                 onDraftChanged = viewModel::updateDraft,
                 onSend = viewModel::send,
+                onResend = viewModel::resendMessage,
                 onCancelGeneration = viewModel::cancelGeneration,
                 onToggleStreaming = viewModel::toggleStreaming,
                 onAddAttachment = viewModel::addAttachment,
@@ -358,6 +359,7 @@ private fun ChatScreen(
     state: ChatUiState,
     onDraftChanged: (String) -> Unit,
     onSend: () -> Unit,
+    onResend: (ChatMessage) -> Unit,
     onCancelGeneration: () -> Unit,
     onToggleStreaming: () -> Unit,
     onAddAttachment: (Attachment) -> Unit,
@@ -552,7 +554,7 @@ private fun ChatScreen(
                             }
                         },
                         onResend = if (message.role == "user") {
-                            { viewModel.resendMessage(message) }
+                            { onResend(message) }
                         } else null,
                     )
                 }
