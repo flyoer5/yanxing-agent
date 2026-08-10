@@ -270,8 +270,22 @@ class ChatViewModel @Inject constructor(
     fun toggleArchiveConversation(conversationId: String) {
         viewModelScope.launch {
             val current = uiState.value.conversations.find { it.id == conversationId } ?: return@launch
-            val ok = repository.setConversationArchived(conversationId, !current.archived)
-            if (!ok) _uiState.update { it.copy(error = "归档失败（会话不存在）") }
+            val nextArchived = !current.archived
+            val ok = repository.setConversationArchived(conversationId, nextArchived)
+            if (!ok) {
+                _uiState.update { it.copy(error = "归档失败（会话不存在）") }
+                return@launch
+            }
+            if (nextArchived && conversationId == currentConversationId.value) {
+                val replacement = uiState.value.conversations.firstOrNull {
+                    it.id != conversationId && !it.archived
+                }
+                if (replacement != null) {
+                    switchConversation(replacement.id)
+                } else {
+                    newConversation()
+                }
+            }
         }
     }
 
