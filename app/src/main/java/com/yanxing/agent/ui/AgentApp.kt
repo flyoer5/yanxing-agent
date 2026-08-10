@@ -1874,6 +1874,13 @@ private fun SessionsDialog(
                     singleLine = true,
                     leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
                 )
+                if (showArchived) {
+                    Text(
+                        text = "当前显示 ${filteredConversations.size} 个会话（含已归档）",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 if (filteredConversations.isEmpty()) {
                     Text(
                         text = if (searchQuery.isBlank()) "暂无会话" else "没有匹配的会话",
@@ -1893,7 +1900,12 @@ private fun SessionsDialog(
                             ) {
                                 Column(modifier = Modifier.fillMaxWidth()) {
                                     Text(
-                                        text = if (conversation.id == selectedId) "✓ ${conversation.title}" else conversation.title,
+                                        text = buildString {
+                                            if (conversation.id == selectedId) append("✓ ")
+                                            if (conversation.pinned) append("📌 ")
+                                            if (conversation.archived) append("[已归档] ")
+                                            append(conversation.title)
+                                        },
                                         maxLines = 1,
                                     )
                                     Text(
