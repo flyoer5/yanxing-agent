@@ -9,8 +9,20 @@ import org.junit.Test
  */
 class ConversationSortTest {
 
-    private fun conv(id: String, pinned: Boolean = false, updatedAt: Long): Conversation =
-        Conversation(id = id, title = "会话$id", groupId = null, pinned = pinned, updatedAt = updatedAt)
+    private fun conv(
+        id: String,
+        pinned: Boolean = false,
+        archived: Boolean = false,
+        updatedAt: Long = 1L,
+    ): Conversation =
+        Conversation(
+            id = id,
+            title = "会话$id",
+            groupId = null,
+            pinned = pinned,
+            archived = archived,
+            updatedAt = updatedAt,
+        )
 
     @Test
     fun `置顶会话排在最前`() {
