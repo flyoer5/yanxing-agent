@@ -73,4 +73,28 @@ class ConversationSortTest {
         val sorted = sortConversations(list)
         assertEquals(listOf("b", "a"), sorted.map { it.id })
     }
+    @Test
+    fun `删除当前会话后跳过已归档候选`() {
+        val conversations = listOf(
+            conv("deleted"),
+            conv("archived", archived = true),
+            conv("active"),
+        )
+        assertEquals("active", nextConversationAfterDelete(conversations, "deleted")?.id)
+    }
+
+    @Test
+    fun `删除列表中唯一未归档会话时无候选`() {
+        val conversations = listOf(
+            conv("deleted"),
+            conv("archived", archived = true),
+        )
+        assertEquals(null, nextConversationAfterDelete(conversations, "deleted"))
+    }
+
+    @Test
+    fun `删除非当前项时仍排除指定会话`() {
+        val conversations = listOf(conv("first"), conv("second"))
+        assertEquals("first", nextConversationAfterDelete(conversations, "second")?.id)
+    }
 }
