@@ -206,6 +206,25 @@ data class Conversation(
     val updatedAt: Long,
 )
 
+/** 会话列表筛选：默认隐藏归档，搜索或显式开关可发现归档会话。 */
+fun filterConversations(
+    conversations: List<Conversation>,
+    query: String,
+    contentMatchIds: Set<String> = emptySet(),
+    groupId: String? = null,
+    showArchived: Boolean = false,
+): List<Conversation> {
+    val trimmedQuery = query.trim()
+    return conversations.filter { conversation ->
+        val groupOk = groupId == null || conversation.groupId == groupId
+        val archiveOk = showArchived || trimmedQuery.isNotBlank() || !conversation.archived
+        val searchOk = trimmedQuery.isBlank() ||
+            conversation.title.contains(trimmedQuery, ignoreCase = true) ||
+            conversation.id in contentMatchIds
+        groupOk && archiveOk && searchOk
+    }
+}
+
 /** 会话置顶优先排序（置顶在前，内部按更新时间倒序；顶层纯函数可单测） */
 fun sortConversations(conversations: List<Conversation>): List<Conversation> =
     conversations.sortedWith(compareByDescending<Conversation> { it.pinned }.thenByDescending { it.updatedAt })

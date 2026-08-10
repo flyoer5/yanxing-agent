@@ -112,6 +112,7 @@ import com.yanxing.agent.data.formatMemories
 import com.yanxing.agent.data.ChatMessage
 import com.yanxing.agent.data.Conversation
 import com.yanxing.agent.data.ConversationGroup
+import com.yanxing.agent.data.filterConversations
 import com.yanxing.agent.data.Memory
 import com.yanxing.agent.data.ActionStatus
 import com.yanxing.agent.service.AIDecisionEngine
@@ -1777,14 +1778,13 @@ private fun SessionsDialog(
         }
     }
     val filteredConversations = remember(conversations, searchQuery, contentMatchIds, groupFilter, showArchived) {
-        conversations.filter { conv ->
-            val groupOk = groupFilter == null || conv.groupId == groupFilter
-            val archiveOk = showArchived || searchQuery.isNotBlank() || !conv.archived
-            val searchOk = searchQuery.isBlank() ||
-                conv.title.contains(searchQuery.trim(), ignoreCase = true) ||
-                conv.id in contentMatchIds
-            groupOk && searchOk
-        }
+        filterConversations(
+            conversations = conversations,
+            query = searchQuery,
+            contentMatchIds = contentMatchIds,
+            groupId = groupFilter,
+            showArchived = showArchived,
+        )
     }
     AlertDialog(
         onDismissRequest = onDismiss,
