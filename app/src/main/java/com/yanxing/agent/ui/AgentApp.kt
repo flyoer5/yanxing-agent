@@ -1787,6 +1787,7 @@ private fun SessionsDialog(
             showArchived = showArchived,
         )
     }
+    val archivedCount = remember(conversations) { conversations.count { it.archived } }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("会话") },
@@ -1798,7 +1799,7 @@ private fun SessionsDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("显示已归档会话", style = MaterialTheme.typography.bodyMedium)
+                    Text("显示已归档会话${if (archivedCount > 0) "（${archivedCount} 个）" else ""}", style = MaterialTheme.typography.bodyMedium)
                     Switch(checked = showArchived, onCheckedChange = { showArchived = it })
                 }
                 if (groups.isNotEmpty()) {
