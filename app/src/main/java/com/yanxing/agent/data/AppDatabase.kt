@@ -24,6 +24,7 @@ data class ConversationEntity(
     val title: String,
     val groupId: String? = null,
     val pinned: Boolean = false,
+    val archived: Boolean = false,
     val createdAt: Long,
     val updatedAt: Long,
 )
@@ -101,6 +102,9 @@ interface ConversationDao {
     @Query("UPDATE conversations SET pinned = :pinned WHERE id = :conversationId")
     suspend fun setPinned(conversationId: String, pinned: Boolean)
 
+    @Query("UPDATE conversations SET archived = :archived WHERE id = :conversationId")
+    suspend fun setArchived(conversationId: String, archived: Boolean)
+
     @Query("DELETE FROM conversations WHERE id = :id")
     suspend fun delete(id: String)
 }
@@ -170,7 +174,7 @@ interface ActionLogDao {
 
 @Database(
     entities = [GroupEntity::class, ConversationEntity::class, MessageEntity::class, MemoryEntity::class, ActionLogEntity::class],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -181,6 +185,13 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun actionLogDao(): ActionLogDao
 
     companion object {
+        /** v4 → v5：conversations 表新增 archived 归档标记（默认 0） */
+        val MIGRATION_4_5 = object : androidx.room.migration.Migration(4, 5) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE conversations ADD COLUMN archived INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         /** v3 → v4：conversations 表新增 pinned 置顶标记（默认 0） */
         val MIGRATION_3_4 = object : androidx.room.migration.Migration(3, 4) {
             override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {

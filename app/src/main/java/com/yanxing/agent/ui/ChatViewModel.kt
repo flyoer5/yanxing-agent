@@ -266,6 +266,15 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    /** 归档/取消归档会话 */
+    fun toggleArchiveConversation(conversationId: String) {
+        viewModelScope.launch {
+            val current = uiState.value.conversations.find { it.id == conversationId } ?: return@launch
+            val ok = repository.setConversationArchived(conversationId, !current.archived)
+            if (!ok) _uiState.update { it.copy(error = "归档失败（会话不存在）") }
+        }
+    }
+
     /** 按消息内容搜索会话 id（供会话搜索框使用） */
     fun searchConversationsByContent(keyword: String, onResult: (List<String>) -> Unit) {
         if (keyword.isBlank()) return

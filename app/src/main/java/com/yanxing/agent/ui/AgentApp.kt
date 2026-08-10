@@ -344,6 +344,7 @@ fun AgentApp(
             onDelete = viewModel::deleteConversation,
                 onRename = viewModel::renameConversation,
                 onTogglePin = viewModel::togglePinConversation,
+                onToggleArchive = viewModel::toggleArchiveConversation,
                 onSearchByContent = viewModel::searchConversationsByContent,
             onCreateGroup = viewModel::createGroup,
             onAssignGroup = viewModel::assignCurrentConversation,
@@ -1730,6 +1731,7 @@ private fun SessionsDialog(
     onDelete: (String) -> Unit,
     onRename: (id: String, newTitle: String) -> Unit,
     onTogglePin: (String) -> Unit,
+    onToggleArchive: (String) -> Unit,
     onSearchByContent: (keyword: String, onResult: (List<String>) -> Unit) -> Unit,
     onCreateGroup: (String) -> Unit,
     onDeleteGroup: (String) -> Unit,
@@ -1751,6 +1753,7 @@ private fun SessionsDialog(
     var newGroupName by remember { mutableStateOf("") }
     var searchQuery by remember { mutableStateOf("") }
     var groupFilter by remember { mutableStateOf<String?>(null) }
+    var showArchived by remember { mutableStateOf(false) }
     // 分组被删除后重置失效筛选
     LaunchedEffect(groups) {
         if (groupFilter != null && groups.none { it.id == groupFilter }) {
@@ -1773,9 +1776,10 @@ private fun SessionsDialog(
             }
         }
     }
-    val filteredConversations = remember(conversations, searchQuery, contentMatchIds, groupFilter) {
+    val filteredConversations = remember(conversations, searchQuery, contentMatchIds, groupFilter, showArchived) {
         conversations.filter { conv ->
             val groupOk = groupFilter == null || conv.groupId == groupFilter
+            val archiveOk = showArchived || searchQuery.isNotBlank() || !conv.archived
             val searchOk = searchQuery.isBlank() ||
                 conv.title.contains(searchQuery.trim(), ignoreCase = true) ||
                 conv.id in contentMatchIds
@@ -1788,6 +1792,14 @@ private fun SessionsDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = onNew, modifier = Modifier.fillMaxWidth()) { Text("新建会话") }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("显示已归档会话", style = MaterialTheme.typography.bodyMedium)
+                    Switch(checked = showArchived, onCheckedChange = { showArchived = it })
+                }
                 if (groups.isNotEmpty()) {
                     Text("当前会话分组", style = MaterialTheme.typography.labelLarge)
                     if (groupFilter != null) {
@@ -1895,6 +1907,9 @@ private fun SessionsDialog(
                             TextButton(onClick = { renameTarget = conversation }) { Text("重命名") }
                             TextButton(onClick = { onTogglePin(conversation.id) }) {
                                 Text(if (conversation.pinned) "取消置顶" else "置顶")
+                            }
+                            TextButton(onClick = { onToggleArchive(conversation.id) }) {
+                                Text(if (conversation.archived) "取消归档" else "归档")
                             }
                         }
                     }

@@ -96,6 +96,13 @@ class ChatRepository @Inject constructor(
         return true
     }
 
+    /** 归档/取消归档会话 */
+    suspend fun setConversationArchived(conversationId: String, archived: Boolean): Boolean {
+        if (conversationDao.findById(conversationId) == null) return false
+        conversationDao.setArchived(conversationId, archived)
+        return true
+    }
+
     suspend fun deleteConversation(id: String) = conversationDao.delete(id)
 
     /** 按消息内容搜索会话 id 列表（标题搜索之外的补充） */
@@ -195,6 +202,7 @@ data class Conversation(
     val title: String,
     val groupId: String?,
     val pinned: Boolean = false,
+    val archived: Boolean = false,
     val updatedAt: Long,
 )
 
@@ -295,7 +303,7 @@ fun formatMemories(memories: List<Memory>): String {
     }.trimEnd()
 }
 
-private fun ConversationEntity.toDomain() = Conversation(id, title, groupId, pinned, updatedAt)
+private fun ConversationEntity.toDomain() = Conversation(id, title, groupId, pinned, archived, updatedAt)
 private fun GroupEntity.toDomain() = ConversationGroup(id, name)
 private fun MessageEntity.toDomain(): ChatMessage {
     val atts = mutableListOf<Attachment>()
