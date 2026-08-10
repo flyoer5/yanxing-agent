@@ -243,7 +243,9 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             repository.deleteConversation(id)
             if (id == currentConversationId.value) {
-                val replacement = uiState.value.conversations.firstOrNull { it.id != id }
+                val replacement = uiState.value.conversations.firstOrNull {
+                    it.id != id && !it.archived
+                }
                 if (replacement != null) switchConversation(replacement.id) else newConversation()
             }
         }
