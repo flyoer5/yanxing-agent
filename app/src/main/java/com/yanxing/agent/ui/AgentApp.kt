@@ -2033,6 +2033,10 @@ private fun SessionsDialog(
         )
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MemoryScreen(
     memories: List<Memory>,
     onDelete: (String) -> Unit,
     onUpdate: (id: String, content: String, category: String) -> Unit,
