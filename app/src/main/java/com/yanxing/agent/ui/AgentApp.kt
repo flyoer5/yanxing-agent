@@ -1743,6 +1743,7 @@ private fun SessionsDialog(
     var renameTarget by remember { mutableStateOf<Conversation?>(null) }
     var renameGroupTarget by remember { mutableStateOf<ConversationGroup?>(null) }
     var pendingDelete by remember { mutableStateOf<Conversation?>(null) }
+    var pendingArchive by remember { mutableStateOf<Conversation?>(null) }
     // 相对时间每分钟刷新
     var timeTick by remember { mutableStateOf(0) }
     LaunchedEffect(Unit) {
@@ -1920,7 +1921,10 @@ private fun SessionsDialog(
                             TextButton(onClick = { onTogglePin(conversation.id) }) {
                                 Text(if (conversation.pinned) "取消置顶" else "置顶")
                             }
-                            TextButton(onClick = { onToggleArchive(conversation.id) }) {
+                            TextButton(onClick = {
+                                if (conversation.archived) onToggleArchive(conversation.id)
+                                else pendingArchive = conversation
+                            }) {
                                 Text(if (conversation.archived) "取消归档" else "归档")
                             }
                         }
@@ -2008,11 +2012,27 @@ private fun SessionsDialog(
             },
         )
     }
-}
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun MemoryScreen(
+    // 归档会话确认对话框
+    pendingArchive?.let { conversation ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { pendingArchive = null },
+            title = { Text("归档会话？") },
+            text = { Text("「${conversation.title}」将从默认会话列表隐藏，可在“显示已归档会话”中恢复。") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onToggleArchive(conversation.id)
+                        pendingArchive = null
+                    },
+                ) { Text("归档") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingArchive = null }) { Text("取消") }
+            },
+        )
+    }
+}
     memories: List<Memory>,
     onDelete: (String) -> Unit,
     onUpdate: (id: String, content: String, category: String) -> Unit,
