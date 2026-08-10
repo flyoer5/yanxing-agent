@@ -118,6 +118,9 @@ interface MessageDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(message: MessageEntity)
+
+    @Query("UPDATE messages SET content = :content WHERE id = :id")
+    suspend fun updateContent(id: String, content: String): Int
 }
 
 @Dao

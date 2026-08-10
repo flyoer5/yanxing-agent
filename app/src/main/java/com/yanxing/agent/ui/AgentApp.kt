@@ -254,6 +254,7 @@ fun AgentApp(
                 onDraftChanged = viewModel::updateDraft,
                 onSend = viewModel::send,
                 onResend = viewModel::resendMessage,
+                onEditMessage = viewModel::editMessage,
                 onCancelGeneration = viewModel::cancelGeneration,
                 onToggleStreaming = viewModel::toggleStreaming,
                 onAddAttachment = viewModel::addAttachment,
@@ -360,6 +361,7 @@ private fun ChatScreen(
     onDraftChanged: (String) -> Unit,
     onSend: () -> Unit,
     onResend: (ChatMessage) -> Unit,
+    onEditMessage: (String, String, (Boolean) -> Unit) -> Unit,
     onCancelGeneration: () -> Unit,
     onToggleStreaming: () -> Unit,
     onAddAttachment: (Attachment) -> Unit,
@@ -377,6 +379,7 @@ private fun ChatScreen(
     val clipboardManager = LocalClipboardManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val inputFocusRequester = remember { FocusRequester() }
+    var editingMessage by remember { mutableStateOf<ChatMessage?>(null) }
     // 切换会话时自动聚焦输入框（切 tab 回来不弹键盘；行动执行中不抢焦点）
     LaunchedEffect(state.selectedConversationId) {
         if (state.actionStatus is ActionStatus.Idle) {
@@ -555,6 +558,9 @@ private fun ChatScreen(
                         },
                         onResend = if (message.role == "user") {
                             { onResend(message) }
+                        } else null,
+                        onEdit = if (message.role == "user") {
+                            { editingMessage = message }
                         } else null,
                     )
                 }
@@ -929,6 +935,37 @@ private fun ChatScreen(
             }
         }
     }
+
+    editingMessage?.let { message ->
+        var editedContent by remember(message.id) { mutableStateOf(message.content) }
+        AlertDialog(
+            onDismissRequest = { editingMessage = null },
+            title = { Text("编辑消息") },
+            text = {
+                OutlinedTextField(
+                    value = editedContent,
+                    onValueChange = { editedContent = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 3,
+                    maxLines = 8,
+                    label = { Text("消息内容") },
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onEditMessage(message.id, editedContent) { success ->
+                            if (success) editingMessage = null
+                        }
+                    },
+                    enabled = editedContent.isNotBlank(),
+                ) { Text("保存") }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingMessage = null }) { Text("取消") }
+            },
+        )
+    }
 }
 
 @Composable
@@ -976,6 +1013,7 @@ private fun MessageBubble(
     modifier: Modifier = Modifier,
     onCopy: ((String) -> Unit)? = null,
     onResend: (() -> Unit)? = null,
+    onEdit: (() -> Unit)? = null,
 ) {
     val isUser = message.role == "user"
     Row(
@@ -1049,18 +1087,36 @@ private fun MessageBubble(
                         style = MaterialTheme.typography.bodyLarge,
                     )
                 }
-                // 用户消息重发按钮
-                if (isUser && onResend != null) {
-                    TextButton(
-                        onClick = onResend,
+                // 用户消息重发/编辑按钮
+                if (isUser && (onResend != null || onEdit != null)) {
+                    Row(
                         modifier = Modifier.align(Alignment.End).padding(top = 2.dp),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        Text(
-                            "重发",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
+                        if (onEdit != null) {
+                            TextButton(
+                                onClick = onEdit,
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                            ) {
+                                Text(
+                                    "编辑",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        }
+                        if (onResend != null) {
+                            TextButton(
+                                onClick = onResend,
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                            ) {
+                                Text(
+                                    "重发",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        }
                     }
                 }
             }

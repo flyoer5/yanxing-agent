@@ -352,6 +352,15 @@ class ChatViewModel @Inject constructor(
         send()
     }
 
+    /** 编辑消息内容（就地覆盖；空内容拒绝） */
+    fun editMessage(messageId: String, newContent: String, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val ok = repository.editMessage(messageId, newContent)
+            if (!ok) _uiState.update { it.copy(error = "编辑失败（消息不存在或内容为空）") }
+            onResult(ok)
+        }
+    }
+
     fun send() {
         val text = uiState.value.draft.trim()
         val attachments = uiState.value.pendingAttachments
