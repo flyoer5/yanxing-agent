@@ -245,6 +245,7 @@ data class ChatMessage(
     val role: String,
     val content: String,
     val attachments: List<Attachment> = emptyList(),
+    val createdAt: Long = 0L,
 )
 
 /** 角色 → 中文标签 */
@@ -346,6 +347,6 @@ private fun MessageEntity.toDomain(): ChatMessage {
             ))
         }
     } catch (_: Exception) { /* ignore parse errors */ }
-    return ChatMessage(id, role, content, atts)
+    return ChatMessage(id, role, content, atts, createdAt)
 }
 private fun MemoryEntity.toDomain() = Memory(id, content, category, isSensitive, updatedAt)

@@ -1145,14 +1145,27 @@ private fun MessageBubble(
                         style = MaterialTheme.typography.bodyLarge,
                     )
                 }
-                // 已编辑标记
-                if (isEdited) {
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = "已编辑",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                // 时间戳与已编辑标记
+                Row(
+                    modifier = Modifier.padding(top = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (message.createdAt > 0L) {
+                        Text(
+                            text = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+                                .format(java.util.Date(message.createdAt)),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (isEdited) {
+                        Text(
+                            text = "已编辑",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
