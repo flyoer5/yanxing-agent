@@ -278,9 +278,10 @@ class ChatViewModel @Inject constructor(
                 return@launch
             }
             if (nextArchived && conversationId == currentConversationId.value) {
-                val replacement = uiState.value.conversations.firstOrNull {
-                    it.id != conversationId && !it.archived
-                }
+                val replacement = nextConversationAfterDelete(
+                    uiState.value.conversations,
+                    conversationId,
+                )
                 if (replacement != null) {
                     switchConversation(replacement.id)
                 } else {
