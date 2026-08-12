@@ -990,14 +990,27 @@ private fun ChatScreen(
                 )
             },
             confirmButton = {
-                Button(
-                    onClick = {
-                        onEditMessage(message.id, editedContent) { success ->
-                            if (success) editingMessage = null
-                        }
-                    },
-                    enabled = editedContent.isNotBlank(),
-                ) { Text("保存") }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            onEditMessage(message.id, editedContent) { success ->
+                                if (success) {
+                                    editingMessage = null
+                                    onResend(message)
+                                }
+                            }
+                        },
+                        enabled = editedContent.isNotBlank(),
+                    ) { Text("保存并重发") }
+                    TextButton(
+                        onClick = {
+                            onEditMessage(message.id, editedContent) { success ->
+                                if (success) editingMessage = null
+                            }
+                        },
+                        enabled = editedContent.isNotBlank(),
+                    ) { Text("仅保存") }
+                }
             },
             dismissButton = {
                 TextButton(onClick = { editingMessage = null }) { Text("取消") }
