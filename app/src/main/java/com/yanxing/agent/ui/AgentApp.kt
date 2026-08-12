@@ -130,6 +130,7 @@ fun AgentApp(
     var selectedTab by remember { mutableStateOf(0) }
     var showSettings by remember { mutableStateOf(false) }
     var showSessions by remember { mutableStateOf(false) }
+    var pendingTopBarArchive by remember { mutableStateOf<Conversation?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     val appContext = LocalContext.current
@@ -161,6 +162,25 @@ fun AgentApp(
             }
             viewModel.dismissMemoryNotice()
         }
+    }
+
+    pendingTopBarArchive?.let { conversation ->
+        AlertDialog(
+            onDismissRequest = { pendingTopBarArchive = null },
+            title = { Text("归档当前会话？") },
+            text = { Text("「${conversation.title}」将从默认会话列表隐藏，可稍后恢复。") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.toggleArchiveConversation(conversation.id)
+                        pendingTopBarArchive = null
+                    },
+                ) { Text("归档") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingTopBarArchive = null }) { Text("取消") }
+            },
+        )
     }
 
     Scaffold(
@@ -201,6 +221,20 @@ fun AgentApp(
                     }
                 },
                 actions = {
+                    val topBarConversation = state.conversations.find { it.id == state.selectedConversationId }
+                    if (topBarConversation != null) {
+                        IconButton(
+                            onClick = {
+                                if (topBarConversation.archived) viewModel.toggleArchiveConversation(topBarConversation.id)
+                                else pendingTopBarArchive = topBarConversation
+                            },
+                            modifier = Modifier.semantics {
+                                contentDescription = if (topBarConversation.archived) "恢复当前会话" else "归档当前会话"
+                            },
+                        ) {
+                            Text(if (topBarConversation.archived) "↩" else "归档", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
                     IconButton(onClick = {
                         val conversation = state.conversations.find { it.id == state.selectedConversationId }
                         val title = conversation?.title ?: "当前会话"
