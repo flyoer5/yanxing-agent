@@ -1138,37 +1138,37 @@ private fun MessageBubble(
                         style = MaterialTheme.typography.bodyLarge,
                     )
                 }
-                // 用户消息重发/编辑按钮
-                if (isUser && (onResend != null || onEdit != null)) {
-                    Row(
-                        modifier = Modifier.align(Alignment.End).padding(top = 2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        if (onEdit != null) {
-                            TextButton(
-                                onClick = onEdit,
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                            ) {
-                                Text(
-                                    "编辑",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                )
-                            }
-                        }
-                        if (onResend != null) {
-                            TextButton(
-                                onClick = onResend,
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                            ) {
-                                Text(
-                                    "重发",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                )
-                            }
-                        }
-                    }
+            }
+        }
+    }
+    // 用户消息重发/编辑按钮（气泡外，避免干扰内容区域）
+    if (isUser && (onResend != null || onEdit != null)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+            horizontalArrangement = Arrangement.End,
+        ) {
+            if (onEdit != null) {
+                TextButton(
+                    onClick = onEdit,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                ) {
+                    Text(
+                        "编辑",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+            if (onResend != null) {
+                TextButton(
+                    onClick = onResend,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                ) {
+                    Text(
+                        "重发",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
                 }
             }
         }
