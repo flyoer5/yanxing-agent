@@ -225,11 +225,11 @@ fun filterConversations(
     }
 }
 
-/** 删除当前会话后的候选：跳过被删除项与已归档会话。 */
-fun nextConversationAfterDelete(
+/** 查找下一个可用会话：跳过指定会话与已归档会话。 */
+fun nextAvailableConversation(
     conversations: List<Conversation>,
-    deletedId: String,
-): Conversation? = conversations.firstOrNull { it.id != deletedId && !it.archived }
+    excludedId: String,
+): Conversation? = conversations.firstOrNull { it.id != excludedId && !it.archived }
 
 /** 会话置顶优先排序（置顶在前，内部按更新时间倒序；顶层纯函数可单测） */
 fun sortConversations(conversations: List<Conversation>): List<Conversation> =

@@ -15,7 +15,7 @@ import com.yanxing.agent.data.Conversation
 import com.yanxing.agent.data.ConversationGroup
 import com.yanxing.agent.data.Memory
 import com.yanxing.agent.data.ModelSettingsStore
-import com.yanxing.agent.data.nextConversationAfterDelete
+import com.yanxing.agent.data.nextAvailableConversation
 import com.yanxing.agent.network.ChatCompletionRequest
 import com.yanxing.agent.network.ChatMessageDto
 import com.yanxing.agent.network.LlmClient
@@ -244,7 +244,7 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             repository.deleteConversation(id)
             if (id == currentConversationId.value) {
-                val replacement = nextConversationAfterDelete(uiState.value.conversations, id)
+                val replacement = nextAvailableConversation(uiState.value.conversations, id)
                 if (replacement != null) switchConversation(replacement.id) else newConversation()
             }
         }
@@ -278,7 +278,7 @@ class ChatViewModel @Inject constructor(
                 return@launch
             }
             if (nextArchived && conversationId == currentConversationId.value) {
-                val replacement = nextConversationAfterDelete(
+                val replacement = nextAvailableConversation(
                     uiState.value.conversations,
                     conversationId,
                 )

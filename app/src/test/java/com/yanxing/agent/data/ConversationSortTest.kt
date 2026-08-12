@@ -92,7 +92,7 @@ class ConversationSortTest {
             conv("archived", archived = true),
             conv("active"),
         )
-        assertEquals("active", nextConversationAfterDelete(conversations, "deleted")?.id)
+        assertEquals("active", nextAvailableConversation(conversations, "deleted")?.id)
     }
 
     @Test
@@ -101,12 +101,12 @@ class ConversationSortTest {
             conv("deleted"),
             conv("archived", archived = true),
         )
-        assertEquals(null, nextConversationAfterDelete(conversations, "deleted"))
+        assertEquals(null, nextAvailableConversation(conversations, "deleted"))
     }
 
     @Test
     fun `删除非当前项时仍排除指定会话`() {
         val conversations = listOf(conv("first"), conv("second"))
-        assertEquals("first", nextConversationAfterDelete(conversations, "second")?.id)
+        assertEquals("first", nextAvailableConversation(conversations, "second")?.id)
     }
 }
