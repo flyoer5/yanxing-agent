@@ -99,6 +99,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -1799,8 +1801,18 @@ private fun SessionsDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("显示已归档会话${if (archivedCount > 0) "（${archivedCount} 个）" else ""}", style = MaterialTheme.typography.bodyMedium)
-                    Switch(checked = showArchived, onCheckedChange = { showArchived = it })
+                    Text(
+                        if (showArchived) "已显示归档会话${if (archivedCount > 0) "（${archivedCount} 个）" else ""}"
+                        else "显示已归档会话${if (archivedCount > 0) "（${archivedCount} 个）" else ""}",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Switch(
+                        checked = showArchived,
+                        onCheckedChange = { showArchived = it },
+                        modifier = Modifier.semantics {
+                            contentDescription = if (showArchived) "隐藏已归档会话" else "显示已归档会话"
+                        },
+                    )
                 }
                 if (groups.isNotEmpty()) {
                     Text("当前会话分组", style = MaterialTheme.typography.labelLarge)
@@ -1885,7 +1897,11 @@ private fun SessionsDialog(
                 }
                 if (filteredConversations.isEmpty()) {
                     Text(
-                        text = if (searchQuery.isBlank()) "暂无会话" else "没有匹配的会话",
+                        text = when {
+                            searchQuery.isNotBlank() -> "没有匹配的会话"
+                            archivedCount > 0 && !showArchived -> "暂无未归档会话，可打开上方开关查看 ${archivedCount} 个已归档会话"
+                            else -> "暂无会话"
+                        },
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(8.dp),
                     )
