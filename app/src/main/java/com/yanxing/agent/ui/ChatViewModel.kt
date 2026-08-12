@@ -75,6 +75,11 @@ class ChatViewModel @Inject constructor(
 
     // ===== 状态管理 =====
     private val currentConversationId = MutableStateFlow("")
+
+    /** 已编辑过的消息 ID 集合，用于显示「已编辑」标记 */
+    private val _editedMessageIds = MutableStateFlow<Set<String>>(emptySet())
+    val editedMessageIds: StateFlow<Set<String>> = _editedMessageIds.asStateFlow()
+
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
@@ -381,7 +386,8 @@ class ChatViewModel @Inject constructor(
     fun editMessage(messageId: String, newContent: String, onResult: (Boolean) -> Unit) {
         viewModelScope.launch {
             val ok = repository.editMessage(messageId, newContent)
-            if (!ok) _uiState.update { it.copy(error = "编辑失败（消息不存在或内容为空）") }
+            if (ok) _editedMessageIds.update { it + messageId }
+            else _uiState.update { it.copy(error = "编辑失败（消息不存在或内容为空）") }
             onResult(ok)
         }
     }

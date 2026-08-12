@@ -127,6 +127,7 @@ fun AgentApp(
     initialText: String? = null,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val editedMessageIds by viewModel.editedMessageIds.collectAsStateWithLifecycle()
     var selectedTab by remember { mutableStateOf(0) }
     var showSettings by remember { mutableStateOf(false) }
     var showSessions by remember { mutableStateOf(false) }
@@ -288,6 +289,7 @@ fun AgentApp(
         when (selectedTab) {
             0 -> ChatScreen(
                 state = state,
+                editedMessageIds = editedMessageIds,
                 onDraftChanged = viewModel::updateDraft,
                 onSend = viewModel::send,
                 onResend = viewModel::resendMessage,
@@ -396,6 +398,7 @@ fun AgentApp(
 @Composable
 private fun ChatScreen(
     state: ChatUiState,
+    editedMessageIds: Set<String>,
     onDraftChanged: (String) -> Unit,
     onSend: () -> Unit,
     onResend: (ChatMessage) -> Unit,
@@ -600,6 +603,7 @@ private fun ChatScreen(
                         onEdit = if (message.role == "user") {
                             { editingMessage = message }
                         } else null,
+                        isEdited = message.id in editedMessageIds,
                         operationsEnabled = !state.isSending,
                     )
                 }
@@ -1066,6 +1070,7 @@ private fun MessageBubble(
     onCopy: ((String) -> Unit)? = null,
     onResend: (() -> Unit)? = null,
     onEdit: (() -> Unit)? = null,
+    isEdited: Boolean = false,
     operationsEnabled: Boolean = true,
 ) {
     val isUser = message.role == "user"
@@ -1138,6 +1143,15 @@ private fun MessageBubble(
                     Text(
                         text = message.content,
                         style = MaterialTheme.typography.bodyLarge,
+                    )
+                }
+                // 已编辑标记
+                if (isEdited) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = "已编辑",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
