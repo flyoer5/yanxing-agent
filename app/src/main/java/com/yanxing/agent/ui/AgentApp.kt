@@ -600,6 +600,7 @@ private fun ChatScreen(
                         onEdit = if (message.role == "user") {
                             { editingMessage = message }
                         } else null,
+                        operationsEnabled = !state.isSending,
                     )
                 }
 
@@ -1065,6 +1066,7 @@ private fun MessageBubble(
     onCopy: ((String) -> Unit)? = null,
     onResend: (() -> Unit)? = null,
     onEdit: (() -> Unit)? = null,
+    operationsEnabled: Boolean = true,
 ) {
     val isUser = message.role == "user"
     Row(
@@ -1150,6 +1152,7 @@ private fun MessageBubble(
             if (onEdit != null) {
                 TextButton(
                     onClick = onEdit,
+                    enabled = operationsEnabled,
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                 ) {
                     Text(
@@ -1162,6 +1165,7 @@ private fun MessageBubble(
             if (onResend != null) {
                 TextButton(
                     onClick = onResend,
+                    enabled = operationsEnabled,
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                 ) {
                     Text(
