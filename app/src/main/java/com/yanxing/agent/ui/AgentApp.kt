@@ -1148,7 +1148,20 @@ private fun MessageBubble(
                 }
                 // 时间戳与已编辑标记
                 Row(
-                    modifier = Modifier.padding(top = 2.dp),
+                    modifier = Modifier
+                        .padding(top = 2.dp)
+                        .semantics {
+                            contentDescription = buildString {
+                                if (message.createdAt > 0L) {
+                                    append("发送时间 ")
+                                    append(formatMessageTime(message.createdAt))
+                                }
+                                if (isEdited) {
+                                    if (isNotEmpty()) append("，")
+                                    append("已编辑")
+                                }
+                            }
+                        },
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
