@@ -595,7 +595,19 @@ private fun ChatScreen(
                         onCopy = { text ->
                             clipboardManager.setText(AnnotatedString(text))
                             coroutineScope.launch {
-                                onShowSnackbar("已复制消息内容")
+                                val copiedLabel = buildString {
+                                    append("已复制")
+                                    if (message.createdAt > 0L) {
+                                        append(" ")
+                                        append(formatMessageTime(message.createdAt))
+                                    }
+                                    if (message.id in editedMessageIds) {
+                                        append(" 的已编辑消息")
+                                    } else {
+                                        append(" 的消息")
+                                    }
+                                }
+                                onShowSnackbar(copiedLabel)
                             }
                         },
                         onResend = if (message.role == "user") {
