@@ -110,6 +110,7 @@ import com.yanxing.agent.data.ActionLogEntity
 import com.yanxing.agent.data.formatActionLogs
 import com.yanxing.agent.data.formatLogTime
 import com.yanxing.agent.data.formatMessageTime
+import com.yanxing.agent.data.formatMessageStatus
 import com.yanxing.agent.data.formatConversation
 import com.yanxing.agent.data.formatMemories
 import com.yanxing.agent.data.ChatMessage
@@ -597,15 +598,12 @@ private fun ChatScreen(
                             coroutineScope.launch {
                                 val copiedLabel = buildString {
                                     append("已复制")
-                                    if (message.createdAt > 0L) {
-                                        append(" ")
-                                        append(formatMessageTime(message.createdAt))
-                                    }
-                                    if (message.id in editedMessageIds) {
-                                        append(" 的已编辑消息")
-                                    } else {
-                                        append(" 的消息")
-                                    }
+                                    val status = formatMessageStatus(
+                                        createdAt = message.createdAt,
+                                        isEdited = message.id in editedMessageIds,
+                                    )
+                                    if (status.isNotBlank()) append(" $status")
+                                    append("的消息")
                                 }
                                 onShowSnackbar(copiedLabel)
                             }
@@ -1163,16 +1161,10 @@ private fun MessageBubble(
                     modifier = Modifier
                         .padding(top = 2.dp)
                         .semantics {
-                            contentDescription = buildString {
-                                if (message.createdAt > 0L) {
-                                    append("发送时间 ")
-                                    append(formatMessageTime(message.createdAt))
-                                }
-                                if (isEdited) {
-                                    if (isNotEmpty()) append("，")
-                                    append("已编辑")
-                                }
-                            }
+                            contentDescription = formatMessageStatus(
+                                createdAt = message.createdAt,
+                                isEdited = isEdited,
+                            )
                         },
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically,

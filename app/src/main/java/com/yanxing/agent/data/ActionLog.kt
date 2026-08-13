@@ -81,10 +81,21 @@ fun formatMessageTime(timestamp: Long, now: Long = System.currentTimeMillis()): 
         .format(java.util.Date(timestamp))
 }
 
-/**
- * 日志列表时间：今天显示 HH:mm:ss，非今天显示 M-d HH:mm（跨天可辨）。
- * 纯 JVM 可测。
- */
+/** 消息状态摘要：统一复制反馈与无障碍语义文案。 */
+fun formatMessageStatus(
+    createdAt: Long,
+    isEdited: Boolean,
+    now: Long = System.currentTimeMillis(),
+): String = buildString {
+    if (createdAt > 0L) {
+        append("发送时间 ")
+        append(formatMessageTime(createdAt, now))
+    }
+    if (isEdited) {
+        if (isNotEmpty()) append("，")
+        append("已编辑")
+    }
+}
 fun formatLogTime(timestamp: Long, now: Long = System.currentTimeMillis()): String {
     val cal = java.util.Calendar.getInstance().apply { timeInMillis = now }
     val logCal = java.util.Calendar.getInstance().apply { timeInMillis = timestamp }
