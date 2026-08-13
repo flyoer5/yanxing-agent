@@ -35,8 +35,6 @@ class MessageTimeTest {
         val sameDay = parser.parse("2026-08-13 08:05")!!.time
         assertEquals("08:05", formatMessageTime(sameDay, now))
     }
-}
-
 
     @Test
     fun `消息状态摘要包含时间与编辑状态`() {
@@ -53,3 +51,4 @@ class MessageTimeTest {
     fun `无时间戳时只显示编辑状态`() {
         assertEquals("已编辑", formatMessageStatus(0L, true, 1L))
     }
+}
