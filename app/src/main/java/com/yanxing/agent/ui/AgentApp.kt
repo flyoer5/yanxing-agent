@@ -109,6 +109,7 @@ import com.yanxing.agent.data.Attachment
 import com.yanxing.agent.data.ActionLogEntity
 import com.yanxing.agent.data.formatActionLogs
 import com.yanxing.agent.data.formatLogTime
+import com.yanxing.agent.data.formatMessageTime
 import com.yanxing.agent.data.formatConversation
 import com.yanxing.agent.data.formatMemories
 import com.yanxing.agent.data.ChatMessage
@@ -1153,8 +1154,7 @@ private fun MessageBubble(
                 ) {
                     if (message.createdAt > 0L) {
                         Text(
-                            text = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
-                                .format(java.util.Date(message.createdAt)),
+                            text = formatMessageTime(message.createdAt),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

@@ -70,6 +70,11 @@ fun formatLogTimestamp(timestamp: Long): String =
     java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
         .format(java.util.Date(timestamp))
 
+/** 时间戳 → "HH:mm" 消息气泡时间（纯 JVM 可测）。 */
+fun formatMessageTime(timestamp: Long): String =
+    java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+        .format(java.util.Date(timestamp))
+
 /**
  * 日志列表时间：今天显示 HH:mm:ss，非今天显示 M-d HH:mm（跨天可辨）。
  * 纯 JVM 可测。
