@@ -70,10 +70,16 @@ fun formatLogTimestamp(timestamp: Long): String =
     java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
         .format(java.util.Date(timestamp))
 
-/** 时间戳 → "HH:mm" 消息气泡时间（纯 JVM 可测）。 */
-fun formatMessageTime(timestamp: Long): String =
-    java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+/** 时间戳 → 今天 HH:mm，跨天 M-d HH:mm（纯 JVM 可测）。 */
+fun formatMessageTime(timestamp: Long, now: Long = System.currentTimeMillis()): String {
+    val nowCalendar = java.util.Calendar.getInstance().apply { timeInMillis = now }
+    val messageCalendar = java.util.Calendar.getInstance().apply { timeInMillis = timestamp }
+    val sameDay = nowCalendar.get(java.util.Calendar.YEAR) == messageCalendar.get(java.util.Calendar.YEAR) &&
+        nowCalendar.get(java.util.Calendar.DAY_OF_YEAR) == messageCalendar.get(java.util.Calendar.DAY_OF_YEAR)
+    val pattern = if (sameDay) "HH:mm" else "M-d HH:mm"
+    return java.text.SimpleDateFormat(pattern, java.util.Locale.getDefault())
         .format(java.util.Date(timestamp))
+}
 
 /**
  * 日志列表时间：今天显示 HH:mm:ss，非今天显示 M-d HH:mm（跨天可辨）。

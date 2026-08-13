@@ -15,7 +15,24 @@ class MessageTimeTest {
     }
 
     @Test
-    fun `零时间戳也能格式化`() {
-        assertEquals("00:00", formatMessageTime(0L))
+    fun `跨天显示月日与时间`() {
+        val parser = java.text.SimpleDateFormat(
+            "yyyy-MM-dd HH:mm",
+            java.util.Locale.getDefault(),
+        )
+        val now = parser.parse("2026-08-13 09:07")!!.time
+        val previousDay = parser.parse("2026-08-12 23:05")!!.time
+        assertEquals("8-12 23:05", formatMessageTime(previousDay, now))
+    }
+
+    @Test
+    fun `同一天保持小时分钟格式`() {
+        val parser = java.text.SimpleDateFormat(
+            "yyyy-MM-dd HH:mm",
+            java.util.Locale.getDefault(),
+        )
+        val now = parser.parse("2026-08-13 09:07")!!.time
+        val sameDay = parser.parse("2026-08-13 08:05")!!.time
+        assertEquals("08:05", formatMessageTime(sameDay, now))
     }
 }
