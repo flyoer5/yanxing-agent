@@ -423,6 +423,14 @@ private fun ChatScreen(
     val keyboardController = LocalSoftwareKeyboardController.current
     val inputFocusRequester = remember { FocusRequester() }
     var editingMessage by remember { mutableStateOf<ChatMessage?>(null) }
+    var messageTimeTick by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(60_000L)
+            messageTimeTick++
+        }
+    }
+    val messageNow = remember(messageTimeTick) { System.currentTimeMillis() }
     // 切换会话时自动聚焦输入框（切 tab 回来不弹键盘；行动执行中不抢焦点）
     LaunchedEffect(state.selectedConversationId) {
         if (state.actionStatus is ActionStatus.Idle) {
@@ -601,6 +609,7 @@ private fun ChatScreen(
                                     val status = formatMessageStatus(
                                         createdAt = message.createdAt,
                                         isEdited = message.id in editedMessageIds,
+                                        now = messageNow,
                                     )
                                     if (status.isNotBlank()) append(" $status")
                                     append("的消息")
@@ -614,8 +623,9 @@ private fun ChatScreen(
                         onEdit = if (message.role == "user") {
                             { editingMessage = message }
                         } else null,
-                        isEdited = message.id in editedMessageIds,
-                        operationsEnabled = !state.isSending,
+                                        isEdited = message.id in editedMessageIds,
+                                        now = messageNow,
+                                        operationsEnabled = !state.isSending,
                     )
                 }
 
@@ -1082,6 +1092,7 @@ private fun MessageBubble(
     onResend: (() -> Unit)? = null,
     onEdit: (() -> Unit)? = null,
     isEdited: Boolean = false,
+    now: Long = System.currentTimeMillis(),
     operationsEnabled: Boolean = true,
 ) {
     val isUser = message.role == "user"
@@ -1164,6 +1175,7 @@ private fun MessageBubble(
                             contentDescription = formatMessageStatus(
                                 createdAt = message.createdAt,
                                 isEdited = isEdited,
+                                now = now,
                             )
                         },
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -1171,7 +1183,7 @@ private fun MessageBubble(
                 ) {
                     if (message.createdAt > 0L) {
                         Text(
-                            text = formatMessageTime(message.createdAt),
+                            text = formatMessageTime(message.createdAt, now),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
