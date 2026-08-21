@@ -7,11 +7,13 @@ class MessageTimeTest {
 
     @Test
     fun `消息时间格式为小时分钟`() {
-        val timestamp = java.text.SimpleDateFormat(
+        val parser = java.text.SimpleDateFormat(
             "yyyy-MM-dd HH:mm",
             java.util.Locale.getDefault(),
-        ).parse("2026-08-13 09:07")!!.time
-        assertEquals("09:07", formatMessageTime(timestamp))
+        )
+        val now = parser.parse("2026-08-13 09:07")!!.time
+        val timestamp = parser.parse("2026-08-13 09:07")!!.time
+        assertEquals("09:07", formatMessageTime(timestamp, now))
     }
 
     @Test
