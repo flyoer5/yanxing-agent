@@ -58,6 +58,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -1096,6 +1098,7 @@ private fun MessageBubble(
     operationsEnabled: Boolean = true,
 ) {
     val isUser = message.role == "user"
+    var showActionMenu by remember { mutableStateOf(false) }
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
@@ -1103,11 +1106,13 @@ private fun MessageBubble(
         Card(
             modifier = Modifier
                 .fillMaxWidth(if (isUser) 0.86f else 0.94f)
-                .then(
-                    if (onCopy != null) Modifier.combinedClickable(
-                        onClick = { onCopy(message.content) },
-                        onLongClick = { onCopy(message.content) },
-                    ) else Modifier,
+                .combinedClickable(
+                    onClick = { onCopy?.invoke(message.content) },
+                    onLongClick = if (onEdit != null || onResend != null) {
+                        { showActionMenu = true }
+                    } else {
+                        { onCopy?.invoke(message.content) }
+                    },
                 ),
             shape = if (isUser) {
                 // 用户气泡贴右：右下角小圆角
@@ -1231,6 +1236,36 @@ private fun MessageBubble(
                     )
                 }
             }
+        }
+    }
+    // 长按气泡快捷操作菜单
+    DropdownMenu(expanded = showActionMenu, onDismissRequest = { showActionMenu = false }) {
+        DropdownMenuItem(
+            text = { Text("复制") },
+            onClick = {
+                showActionMenu = false
+                onCopy?.invoke(message.content)
+            },
+        )
+        if (onEdit != null) {
+            DropdownMenuItem(
+                text = { Text("编辑") },
+                enabled = operationsEnabled,
+                onClick = {
+                    showActionMenu = false
+                    onEdit()
+                },
+            )
+        }
+        if (onResend != null) {
+            DropdownMenuItem(
+                text = { Text("重发") },
+                enabled = operationsEnabled,
+                onClick = {
+                    showActionMenu = false
+                    onResend()
+                },
+            )
         }
     }
 }
