@@ -82,14 +82,16 @@ fun clampWindowY(currentY: Int, screenHeight: Int, windowHeight: Int): Int {
  * 悬浮窗实时进度显示
  * 显示执行状态、成功/失败计数、控制按钮
  */
-class FloatingProgressOverlay(private val context: Context) {
+class FloatingProgressOverlay(context: Context) {
 
     companion object {
         /** 悬浮窗提示条的显示时长（毫秒） */
         const val NOTICE_DURATION_MS = 3_000L
     }
-    
-    private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
+
+    // applicationContext：避免持有 Activity context 导致泄漏
+    private val context = context.applicationContext
+    private val windowManager = this.context.getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
     private var isVisible = false
     private var currentView: View? = null
     private var currentParams: android.view.WindowManager.LayoutParams? = null
@@ -219,13 +221,24 @@ class FloatingProgressOverlay(private val context: Context) {
     private fun destroyView() {
         try {
             if (isVisible) {
-                currentView?.let { windowManager.removeView(it) }
-                currentView = null
-                currentParams = null
-                isVisible = false
+                currentView?.let { runCatching { windowManager.removeView(it) } }
             }
         } catch (e: Exception) {
             e.printStackTrace()
+        } finally {
+            // 无论 removeView 是否抛异常都清空全部引用，
+            // 否则窗口已移除但状态仍是"可见"，后续 createView 状态错乱
+            currentView = null
+            currentParams = null
+            progressTextView = null
+            successCountTextView = null
+            failedCountTextView = null
+            currentTaskTextView = null
+            lastResultTextView = null
+            noticeTextView = null
+            controlButtonView = null
+            undoButtonView = null
+            isVisible = false
         }
     }
 

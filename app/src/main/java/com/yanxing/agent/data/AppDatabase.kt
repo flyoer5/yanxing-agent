@@ -138,6 +138,13 @@ interface MessageDao {
 
     @Query("UPDATE messages SET content = :content WHERE id = :id")
     suspend fun updateContent(id: String, content: String): Int
+
+    /** 旧版本把附件 base64 写进了库，启动时一次性清洗用 */
+    @Query("SELECT * FROM messages WHERE attachments LIKE '%\"base64\"%'")
+    suspend fun findMessagesWithLegacyBase64(): List<MessageEntity>
+
+    @Query("UPDATE messages SET attachments = :attachments WHERE id = :id")
+    suspend fun updateAttachments(id: String, attachments: String)
 }
 
 @Dao
@@ -160,7 +167,7 @@ interface MemoryDao {
 
 @Dao
 interface ActionLogDao {
-    @Query("SELECT * FROM action_logs ORDER BY timestamp DESC")
+    @Query("SELECT * FROM action_logs ORDER BY timestamp DESC LIMIT 500")
     fun observeAll(): Flow<List<ActionLogEntity>>
 
     @Query("SELECT * FROM action_logs WHERE packageName = :packageName ORDER BY timestamp DESC")

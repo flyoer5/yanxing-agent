@@ -853,6 +853,15 @@ API Key 只保存在设备本地的 Android Keystore 加密数据中，不会写
 - **日志流去重复排序**：SQL 已按时间倒序，去掉 Flow 里的整表重排
 - 版本号 `versionCode=171`、`versionName="0.171.0"`
 
+## 第一百七十二阶段（数据治理与内存优化）已完成
+
+- **存量 base64 清洗**：启动时后台一次性剥离旧版本写进 messages 表的附件 base64（幂等，打标只跑一次），老库体积显著缩小
+- **请求历史窗口**：发给模型的历史限制为最近 30 条 / 累计 2.4 万字符（`capHistoryForRequest` 纯函数 + 4 个单测），长会话 token 与延迟不再线性膨胀
+- **悬浮进度窗生命周期**：改用 applicationContext、销毁时 finally 清空全部子 View 引用，removeView 异常不再导致状态错乱
+- **日志查询限量**：action_logs 观察查询加 LIMIT 500，配合去重复排序，日志表增长不再拖慢 UI 状态流
+- 新增 9 个单元测试（历史窗口 4 + 日志状态映射 5）
+- 版本号 `versionCode=172`、`versionName="0.172.0"`
+
 ## 后续可扩展
 
 - 集成测试（androidTest，需设备）

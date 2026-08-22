@@ -247,6 +247,26 @@ data class ChatMessage(
     val createdAt: Long = 0L,
 )
 
+/**
+ * 请求历史窗口：最多带最近 [maxMessages] 条、累计正文不超过 [maxChars] 字符，
+ * 从最旧的消息开始丢弃。避免长会话把全部历史塞进请求（token 与延迟随轮数线性膨胀）。
+ */
+fun capHistoryForRequest(
+    messages: List<ChatMessage>,
+    maxMessages: Int = 30,
+    maxChars: Int = 24_000,
+): List<ChatMessage> {
+    val recent = messages.takeLast(maxMessages)
+    var acc = 0
+    val keep = mutableListOf<ChatMessage>()
+    for (message in recent.asReversed()) {
+        acc += message.content.length
+        if (acc > maxChars && keep.isNotEmpty()) break
+        keep.add(message)
+    }
+    return keep.asReversed()
+}
+
 /** 角色 → 中文标签 */
 fun roleLabel(role: String): String = when (role) {
     "user" -> "我"

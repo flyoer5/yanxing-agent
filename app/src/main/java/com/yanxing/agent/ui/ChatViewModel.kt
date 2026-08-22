@@ -15,6 +15,7 @@ import com.yanxing.agent.data.Conversation
 import com.yanxing.agent.data.ConversationGroup
 import com.yanxing.agent.data.Memory
 import com.yanxing.agent.data.ModelSettingsStore
+import com.yanxing.agent.data.capHistoryForRequest
 import com.yanxing.agent.data.nextAvailableConversation
 import com.yanxing.agent.network.ChatCompletionRequest
 import com.yanxing.agent.network.ChatMessageDto
@@ -419,8 +420,8 @@ class ChatViewModel @Inject constructor(
         generationJob = viewModelScope.launch {
             val conversationId = currentConversationId.value
             // 先取历史再落库：历史消息不含本次内容；附件 base64 已不入库，
-            // 本次消息的内容在下方从内存附件现读构建
-            val history = repository.messagesForRequest(conversationId)
+            // 本次消息的内容在下方从内存附件现读构建；超长会话按窗口截断
+            val history = capHistoryForRequest(repository.messagesForRequest(conversationId))
             repository.appendMessage(conversationId, "user", text, attachments)
             if (text.isNotBlank()) extractMemory(text)
             val memoryContext = relevantMemories(text, current.memories)
