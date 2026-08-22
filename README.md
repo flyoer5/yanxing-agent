@@ -862,6 +862,14 @@ API Key 只保存在设备本地的 Android Keystore 加密数据中，不会写
 - 新增 9 个单元测试（历史窗口 4 + 日志状态映射 5）
 - 版本号 `versionCode=172`、`versionName="0.172.0"`
 
+## 第一百七十三阶段（架构拆分）已完成
+
+- **ChatViewModel 拆分**（1233 行 → 722 行）：
+  - 新增 `ActionSessionController`：替我行动完整链路（读屏 → 决策 → 确认 → 执行 → 多轮续判 → 停止 → 撤销 → 悬浮进度窗）独立成类，依赖全部构造注入
+  - 新增 `RootCommandExecutor`：Root 命令面（电池/亮度/亮屏/回桌面/应用列表/设备信息）从 ViewModel 拆出
+  - ViewModel 保留同名薄委托，UI 层零改动
+- 版本号 `versionCode=173`、`versionName="0.173.0"`
+
 ## 后续可扩展
 
 - 集成测试（androidTest，需设备）

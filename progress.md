@@ -56,3 +56,6 @@
 
 ## 2026-08-22（第一百七十二阶段：数据治理与内存优化）
 - 启动一次性清洗存量附件 base64；请求历史窗口（30 条/24k 字符）；悬浮进度窗引用清理；action_logs LIMIT 500。版本 0.172.0。
+
+## 2026-08-22（第一百七十三阶段：架构拆分）
+- ActionSessionController（行动编排）与 RootCommandExecutor（Root 命令）从 ChatViewModel 拆出，行为不变、UI 层零改动。版本 0.173.0。
