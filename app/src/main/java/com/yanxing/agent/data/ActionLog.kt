@@ -40,6 +40,18 @@ fun actionStatusLabel(status: String): String = when (status) {
 }
 
 /**
+ * 运行时 ActionStatus → 落库状态字符串（唯一权威映射）。
+ * 此前 ChatRepository 与 BatchedLogWriter 各自维护一份 when，
+ * 已出现分叉（取消被记成 unknown），统一收敛到这里。
+ */
+fun ActionStatus.toLogStatusLabel(): String = when (this) {
+    is ActionStatus.Completed -> if (successCount == totalCount) "success" else "failed"
+    is ActionStatus.Executing -> "running"
+    is ActionStatus.PendingConfirm.Canceled -> "cancelled"
+    else -> "unknown"
+}
+
+/**
  * 将操作日志列表格式化为可导出的纯文本。
  * 无 Android 依赖，纯函数可单测。
  */

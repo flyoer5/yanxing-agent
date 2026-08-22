@@ -58,13 +58,7 @@ class BatchedLogWriter(
             actionType = actionType,
             targetElement = targetElement?.take(200),
             details = details.take(1000),
-            status = when (status) {
-                is ActionStatus.Completed ->
-                    if (status.successCount == status.totalCount) "success" else "failed"
-                is ActionStatus.Executing -> "running"
-                is ActionStatus.PendingConfirm.Canceled -> "cancelled"
-                else -> "unknown"
-            },
+            status = status.toLogStatusLabel(),
             errorMessage = errorMessage,
             timestamp = System.currentTimeMillis(),
         )

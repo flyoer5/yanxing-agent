@@ -841,6 +841,18 @@ API Key 只保存在设备本地的 Android Keystore 加密数据中，不会写
 - **性能**：无障碍内容变化事件 300ms 节流；树遍历深度 O(1)；Levenshtein 截断长文本；OkHttp 错误响应读出具体原因；协程取消同步取消底层网络请求；流式请求独立 10 分钟读超时
 - 版本号 `versionCode=170`、`versionName="0.170.0"`
 
+## 第一百七十一阶段（附件存储改造与杂项修复）已完成
+
+- **附件 base64 不再入库**：附件拷贝到应用私有目录（解决内容 URI 权限不持久），Room 只存元数据；发送时 base64 现读（IO 协程），历史消息不再携带图片内容——数据库体积、内存占用、请求 token 三项同时下降
+- **附件读取移出主线程**：选择图片/文件后在 IO 协程拷贝，大文件不再卡 UI
+- **会话标题定向更新**：`appendMessage` 改 `UPDATE title`，消除读-改-写整行 REPLACE 的并发丢更新
+- **悬浮窗快捷输入修复**：`MainActivity` 处理 `onNewIntent`，Activity 复用时快捷文本不再丢失
+- **API Key 可清空**：`saveApiKey` 空值视为清除，与搜索 Key 行为一致
+- **语音识别超时兜底**：15 秒无回调自动释放，修复部分 ROM 上 `listening` 永久卡死
+- **日志状态映射统一**：收敛为 `ActionStatus.toLogStatusLabel()` 单一映射，取消不再记成 unknown
+- **日志流去重复排序**：SQL 已按时间倒序，去掉 Flow 里的整表重排
+- 版本号 `versionCode=171`、`versionName="0.171.0"`
+
 ## 后续可扩展
 
 - 集成测试（androidTest，需设备）

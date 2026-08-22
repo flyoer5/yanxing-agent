@@ -62,6 +62,11 @@ class ModelSettingsStore @Inject constructor(
     }.getOrDefault("")
 
     fun saveApiKey(value: String) {
+        // 与 saveSearchApiKey 对齐：空值视为清除，避免"空串"与"未设置"无法区分
+        if (value.isBlank()) {
+            preferences.edit().remove(KEY_API_KEY).remove(KEY_API_IV).apply()
+            return
+        }
         val encrypted = encrypt(value)
         preferences.edit()
             .putString(KEY_API_KEY, encrypted.ciphertext)

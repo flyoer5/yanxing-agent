@@ -82,7 +82,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -454,12 +456,18 @@ private fun ChatScreen(
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        uri?.let {
-            val mimeType = context.contentResolver.getType(it) ?: "image/jpeg"
-            val name = getFileName(context, it) ?: "image_${System.currentTimeMillis()}.jpg"
-            // 读取 base64
-            val base64 = readFileAsBase64(context, it)
-            onAddAttachment(Attachment("image", it.toString(), mimeType, name, 0, base64))
+        uri?.let { picked ->
+            val mimeType = context.contentResolver.getType(picked) ?: "image/jpeg"
+            val name = getFileName(context, picked) ?: "image_${System.currentTimeMillis()}.jpg"
+            // 拷贝到应用私有目录（IO 协程）：内容 URI 的读取权限不持久；
+            // base64 只在发送时现读，不常驻内存
+            coroutineScope.launch {
+                val attachment = withContext(Dispatchers.IO) {
+                    copyToLocalAttachment(context, picked, "image", mimeType, name)
+                }
+                if (attachment != null) onAddAttachment(attachment)
+                else onShowSnackbar("图片读取失败")
+            }
         }
     }
 
@@ -467,11 +475,16 @@ private fun ChatScreen(
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
-        uri?.let {
-            val mimeType = context.contentResolver.getType(it) ?: "application/octet-stream"
-            val name = getFileName(context, it) ?: "file_${System.currentTimeMillis()}"
-            val base64 = readFileAsBase64(context, it)
-            onAddAttachment(Attachment("file", it.toString(), mimeType, name, 0, base64))
+        uri?.let { picked ->
+            val mimeType = context.contentResolver.getType(picked) ?: "application/octet-stream"
+            val name = getFileName(context, picked) ?: "file_${System.currentTimeMillis()}"
+            coroutineScope.launch {
+                val attachment = withContext(Dispatchers.IO) {
+                    copyToLocalAttachment(context, picked, "file", mimeType, name)
+                }
+                if (attachment != null) onAddAttachment(attachment)
+                else onShowSnackbar("文件读取失败")
+            }
         }
     }
 
@@ -1284,15 +1297,37 @@ private fun getFileName(context: android.content.Context, uri: Uri): String? {
     return name
 }
 
-private fun readFileAsBase64(context: android.content.Context, uri: Uri): String? {
-    return try {
-        context.contentResolver.openInputStream(uri)?.use { stream ->
-            val bytes = stream.readBytes()
-            android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
-        }
-    } catch (e: Exception) {
-        null
-    }
+/**
+ * 把选择的内容 URI 拷贝到应用私有目录（attachments/），返回以 file:// uri 标识的附件。
+ * - 内容 URI 的读取权限在进程重启后失效，拷贝后可长期预览
+ * - base64 不在此处生成，发送时按需现读，避免大字符串常驻内存与数据库
+ */
+private fun copyToLocalAttachment(
+    context: android.content.Context,
+    uri: Uri,
+    type: String,
+    mimeType: String,
+    displayName: String?,
+): Attachment? = try {
+    val dir = java.io.File(context.filesDir, "attachments").apply { mkdirs() }
+    val ext = mimeType.substringAfter('/').takeIf { it.isNotBlank() && it.all(Char::isLetterOrDigit) }
+        ?.let { ".$it" } ?: ""
+    val dest = java.io.File(
+        dir,
+        "att_${System.currentTimeMillis()}_${java.util.UUID.randomUUID().toString().take(8)}$ext",
+    )
+    val input = context.contentResolver.openInputStream(uri) ?: return null
+    input.use { source -> dest.outputStream().use { source.copyTo(it) } }
+    Attachment(
+        type = type,
+        uri = dest.toURI().toString(),
+        mimeType = mimeType,
+        name = displayName ?: dest.name,
+        size = dest.length(),
+        base64 = null,
+    )
+} catch (e: Exception) {
+    null
 }
 
 // ============ 其他屏幕 ============

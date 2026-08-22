@@ -49,6 +49,8 @@ class ChatRepository @Inject constructor(
 
     suspend fun appendMessage(conversationId: String, role: String, content: String, attachments: List<Attachment> = emptyList()) {
         val now = System.currentTimeMillis()
+        // 附件只存元数据：base64 入库会让每条带图消息膨胀数 MB，
+        // 且每次 Flow 发射都要全量 JSON 解析；发送时从本地文件现读
         val attachmentsJson = JSONArray().apply {
             attachments.forEach { att ->
                 put(JSONObject().apply {
@@ -57,16 +59,16 @@ class ChatRepository @Inject constructor(
                     put("mimeType", att.mimeType)
                     put("name", att.name)
                     put("size", att.size)
-                    att.base64?.let { put("base64", it) }
                 })
             }
         }.toString()
         messageDao.insert(MessageEntity(UUID.randomUUID().toString(), conversationId, role, content, attachmentsJson, now))
+        // 定向 UPDATE（读-改-写 + REPLACE 会整行重写，并发 append 时丢更新）
         conversationDao.findById(conversationId)?.let { current ->
             val nextTitle = if (current.title == "新对话" && role == "user") {
                 content.take(24).ifBlank { current.title }
             } else current.title
-            conversationDao.upsert(current.copy(title = nextTitle, updatedAt = now))
+            conversationDao.setTimestampAndTitle(conversationId, nextTitle, now)
         }
     }
 
@@ -154,7 +156,8 @@ class ChatRepository @Inject constructor(
     // ===== 操作日志管理 =====
 
     fun observeActionLogs(): Flow<List<ActionLogEntity>> =
-        actionLogDao.observeAll().map { list -> list.sortedByDescending { it.timestamp } }
+        // SQL 已 ORDER BY timestamp DESC，无需在 Flow 里重复排序
+        actionLogDao.observeAll()
 
     fun observeActionLogsByPackage(packageName: String): Flow<List<ActionLogEntity>> =
         actionLogDao.observeForPackage(packageName)
@@ -174,11 +177,7 @@ class ChatRepository @Inject constructor(
             actionType = actionType,
             targetElement = targetElement?.take(200),
             details = details.take(1000),
-            status = when (status) {
-                is ActionStatus.Completed -> if (status.successCount == status.totalCount) "success" else "failed"
-                is ActionStatus.Executing -> "running"
-                else -> "unknown"
-            },
+            status = status.toLogStatusLabel(),
             errorMessage = errorMessage,
         )
         actionLogDao.insert(log)

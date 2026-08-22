@@ -105,6 +105,9 @@ interface ConversationDao {
     @Query("UPDATE conversations SET archived = :archived WHERE id = :conversationId")
     suspend fun setArchived(conversationId: String, archived: Boolean)
 
+    @Query("UPDATE conversations SET title = :title, updatedAt = :updatedAt WHERE id = :conversationId")
+    suspend fun setTimestampAndTitle(conversationId: String, title: String, updatedAt: Long)
+
     @Query("DELETE FROM conversations WHERE id = :id")
     suspend fun delete(id: String)
 

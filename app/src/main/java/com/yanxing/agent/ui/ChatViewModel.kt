@@ -418,9 +418,11 @@ class ChatViewModel @Inject constructor(
         _uiState.update { it.copy(draft = "", isSending = true, error = null, pendingAttachments = emptyList()) }
         generationJob = viewModelScope.launch {
             val conversationId = currentConversationId.value
+            // 先取历史再落库：历史消息不含本次内容；附件 base64 已不入库，
+            // 本次消息的内容在下方从内存附件现读构建
+            val history = repository.messagesForRequest(conversationId)
             repository.appendMessage(conversationId, "user", text, attachments)
             if (text.isNotBlank()) extractMemory(text)
-            val history = repository.messagesForRequest(conversationId)
             val memoryContext = relevantMemories(text, current.memories)
             _uiState.update { it.copy(memoryReferenceCount = memoryContext.size) }
 
@@ -463,6 +465,8 @@ class ChatViewModel @Inject constructor(
                     ))
                 }
                 addAll(history.map { it.toChatMessageDto() })
+                // 本次发送的用户消息：图片 base64 从本地附件文件现读（IO）
+                add(buildCurrentUserDto(text, attachments))
             }
             _uiState.update { it.copy(searchResultCount = searchResults.size) }
             val request = ChatCompletionRequest(
@@ -1171,6 +1175,25 @@ class ChatViewModel @Inject constructor(
             ChatMessageDto.text(role, content)
         }
     }
+
+    /** 构建本次发送的用户消息 DTO：附件已拷贝到私有目录，base64 发送时现读 */
+    private suspend fun buildCurrentUserDto(text: String, attachments: List<Attachment>): ChatMessageDto {
+        val image = attachments.firstOrNull { it.type == "image" } ?: return ChatMessageDto.text("user", text)
+        val base64 = withContext(Dispatchers.IO) { readLocalFileBase64(image.uri) }
+            ?: return ChatMessageDto.text("user", text)
+        return ChatMessageDto.withImage(
+            role = "user",
+            text = text,
+            imageBase64 = base64,
+            mimeType = image.mimeType,
+        )
+    }
+
+    private fun readLocalFileBase64(uri: String): String? = runCatching {
+        val file = java.io.File(java.net.URI(uri).takeIf { it.scheme == "file" } ?: return null)
+        if (!file.exists()) null
+        else android.util.Base64.encodeToString(file.readBytes(), android.util.Base64.NO_WRAP)
+    }.getOrNull()
 }
 
 data class ChatUiState(

@@ -18,6 +18,16 @@ class VoiceInputController(private val context: Context) {
 
     private var recognizer: SpeechRecognizer? = null
     private var listening = false
+    private val timeoutHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    /** 部分 OEM ROM 不回调 onError，超时兜底避免 listening 永远为 true */
+    private val timeoutRunnable = Runnable {
+        if (listening) {
+            finish(lastOnStateChanged)
+            lastOnError("语音识别超时，请重试")
+        }
+    }
+    private var lastOnError: (String) -> Unit = {}
+    private var lastOnStateChanged: (Boolean) -> Unit = {}
 
     val isListening: Boolean get() = listening
 
@@ -49,7 +59,10 @@ class VoiceInputController(private val context: Context) {
         }
         recognizer = created
         listening = true
+        lastOnError = onError
+        lastOnStateChanged = onStateChanged
         onStateChanged(true)
+        timeoutHandler.postDelayed(timeoutRunnable, LISTEN_TIMEOUT_MS)
 
         // 提前捕获到局部变量：监听器内部也有 onError 方法，避免同名解析歧义
         val emitResult = onResult
@@ -98,23 +111,27 @@ class VoiceInputController(private val context: Context) {
 
     /** 主动取消识别 */
     fun cancel() {
+        timeoutHandler.removeCallbacks(timeoutRunnable)
         runCatching { recognizer?.cancel() }
         release()
     }
 
     /** 释放识别器资源 */
     fun release() {
+        timeoutHandler.removeCallbacks(timeoutRunnable)
         runCatching { recognizer?.destroy() }
         recognizer = null
         listening = false
     }
 
     private fun finish(onStateChanged: (Boolean) -> Unit) {
+        timeoutHandler.removeCallbacks(timeoutRunnable)
         release()
         onStateChanged(false)
     }
 
     companion object {
+        private const val LISTEN_TIMEOUT_MS = 15_000L
         /** 把 SpeechRecognizer 错误码翻译成中文提示 */
         fun describeError(error: Int): String = when (error) {
             SpeechRecognizer.ERROR_AUDIO -> "录音出错，请重试"
