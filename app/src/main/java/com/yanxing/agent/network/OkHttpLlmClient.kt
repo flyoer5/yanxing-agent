@@ -57,7 +57,7 @@ class OkHttpLlmClient @Inject constructor(
                 val streamClient = httpClient.newBuilder()
                     .readTimeout(10, TimeUnit.MINUTES)
                     .build()
-                val response = awaitCall(streamClient, buildCall(streamClient, baseUrl, apiKey, request.copy(stream = true)))
+                val response = awaitCall(buildCall(baseUrl, apiKey, request.copy(stream = true), streamClient))
                 response.use {
                     check(it.isSuccessful) { httpError("请求失败", it) }
                     val source = it.body?.source() ?: error("响应为空")
@@ -72,8 +72,7 @@ class OkHttpLlmClient @Inject constructor(
         }
     }
 
-    /** 非阻塞执行并挂起等待；协程取消时同步取消底层 Call，释放连接与线程 */
-    private suspend fun awaitCall(client: OkHttpClient, call: Call): Response =
+    private suspend fun awaitCall(call: Call): Response =
         suspendCancellableCoroutine { cont ->
             call.enqueue(object : Callback {
                 override fun onFailure(call: Call, e: java.io.IOException) {
@@ -87,13 +86,11 @@ class OkHttpLlmClient @Inject constructor(
             cont.invokeOnCancellation { call.cancel() }
         }
 
-    private suspend fun awaitCall(call: Call): Response = awaitCall(httpClient, call)
-
     private fun buildCall(
-        client: OkHttpClient = httpClient,
         baseUrl: String,
         apiKey: String,
         request: ChatCompletionRequest,
+        client: OkHttpClient = httpClient,
     ): Call = client.newCall(
         Request.Builder()
             .url(endpoint(baseUrl))
