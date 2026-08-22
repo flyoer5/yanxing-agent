@@ -3,6 +3,7 @@ package com.yanxing.agent.service
 import com.yanxing.agent.data.ActionLogEntity
 import com.yanxing.agent.data.ActionStatus
 import com.yanxing.agent.data.ChatRepository
+import com.yanxing.agent.data.toLogStatusLabel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
