@@ -1,6 +1,12 @@
 package com.yanxing.agent.service
 
 import com.yanxing.agent.network.ChatMessageDto
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
 
 /** AI 驱动的替我行动决策与动作解析。 */
 object AIDecisionEngine {
@@ -37,19 +43,42 @@ object AIDecisionEngine {
         return ChatMessageDto(role = "system", content = content)
     }
 
+    /** 解析 LLM 回复：优先按标准 JSON 解析（正确处理转义与嵌套），失败再降级正则 */
     fun parseLLMResponse(jsonText: String): ActionSequence {
         return try {
-            val done = extractBool(jsonText, "done")
-            val actions = Regex("\\{[^{}]*\\}")
-                .findAll(jsonText)
-                .mapNotNull { match -> parseAction(match.value) }
-                .take(5)
-                .toList()
-            ActionSequence(actions, actions.isNotEmpty() || done, done = done)
+            val cleaned = stripMarkdownFences(jsonText)
+            val start = cleaned.indexOf('{')
+            val end = cleaned.lastIndexOf('}')
+            if (start < 0 || end <= start) {
+                return ActionSequence(emptyList(), false, "回复中未找到 JSON 内容")
+            }
+            val root = Json.parseToJsonElement(cleaned.substring(start, end + 1)) as? JsonObject
+                ?: return ActionSequence(emptyList(), false, "JSON 结构异常")
+            val done = (root["done"] as? JsonPrimitive)?.booleanOrNull ?: false
+            val reason = (root["reason"] as? JsonPrimitive)?.contentOrNull
+            val actions = (root["actions"] as? JsonArray)
+                ?.mapNotNull(::parseActionElement)
+                ?.take(5)
+                .orEmpty()
+            ActionSequence(actions, actions.isNotEmpty() || done, done = done, reason = reason)
         } catch (error: Exception) {
-            ActionSequence(emptyList(), false, error.message ?: "解析失败")
+            // 降级：兼容 LLM 在 JSON 前后夹杂说明文字的情况
+            return try {
+                val actions = Regex("\\{[^{}]*\\}")
+                    .findAll(jsonText)
+                    .mapNotNull { match -> parseActionElement(Json.parseToJsonElement(match.value)) }
+                    .take(5)
+                    .toList()
+                ActionSequence(actions, actions.isNotEmpty(), done = false)
+            } catch (fallbackError: Exception) {
+                ActionSequence(emptyList(), false, error.message ?: "解析失败")
+            }
         }
     }
+
+    /** 剥掉 ```json ... ``` 围栏与零散反引号 */
+    private fun stripMarkdownFences(text: String): String =
+        text.replace("```json", "").replace("```", "").replace("`", "").trim()
 
     /**
      * 生成"继续决策"提示词：执行完一组动作后，根据新屏幕判断任务是否完成或继续操作。
@@ -80,45 +109,38 @@ object AIDecisionEngine {
         return ChatMessageDto(role = "system", content = content)
     }
 
-    private fun parseAction(item: String): Action? {
-        val actionName = extractString(item, "action").ifBlank {
+    private fun parseActionElement(element: kotlinx.serialization.json.JsonElement): Action? {
+        val obj = element as? JsonObject ?: return null
+        val raw = obj.toString()
+        val actionName = (obj["action"] as? JsonPrimitive)?.contentOrNull.orEmpty().ifBlank {
             when {
-                item.contains("click") -> "click"
-                item.contains("long_press") -> "long_press"
-                item.contains("swipe") -> "swipe"
-                item.contains("input_text") -> "input_text"
-                item.contains("back") || item.contains("return") -> "back"
-                item.contains("clear_text") -> "clear_text"
+                raw.contains("click") -> "click"
+                raw.contains("long_press") -> "long_press"
+                raw.contains("swipe") -> "swipe"
+                raw.contains("input_text") -> "input_text"
+                raw.contains("back") || raw.contains("return") -> "back"
+                raw.contains("clear_text") -> "clear_text"
                 else -> ""
             }
         }
+        fun str(key: String): String = (obj[key] as? JsonPrimitive)?.contentOrNull.orEmpty()
         return when (actionName.lowercase()) {
-            "click" -> Action.Click(extractString(item, "query"))
-            "long_press" -> Action.LongPress(extractString(item, "query"))
+            "click" -> Action.Click(str("query"))
+            "long_press" -> Action.LongPress(str("query"))
             "swipe" -> {
                 val direction = runCatching {
-                    SwipeDirection.valueOf(extractString(item, "direction").uppercase())
+                    SwipeDirection.valueOf(str("direction").uppercase())
                 }.getOrNull() ?: return null
                 Action.Swipe(direction)
             }
             "input_text" -> Action.InputText(
-                extractString(item, "query"),
-                extractString(item, "text"),
+                str("query"),
+                str("text"),
             )
             "back" -> Action.Back
-            "clear_text" -> Action.ClearText(extractString(item, "query"))
+            "clear_text" -> Action.ClearText(str("query"))
             else -> null
         }
-    }
-
-    private fun extractString(json: String, key: String): String {
-        val pattern = Regex("\\\"$key\\\"\\s*:\\s*\\\"([^\\\"]*)\\\"")
-        return pattern.find(json)?.groupValues?.getOrNull(1).orEmpty()
-    }
-
-    private fun extractBool(json: String, key: String): Boolean {
-        val pattern = Regex("\\\"$key\\\"\\s*:\\s*(true|false)")
-        return pattern.find(json)?.groupValues?.getOrNull(1) == "true"
     }
 
     data class ActionSequence(

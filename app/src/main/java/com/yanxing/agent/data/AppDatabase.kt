@@ -29,7 +29,7 @@ data class ConversationEntity(
     val updatedAt: Long,
 )
 
-@Entity(tableName = "messages")
+@Entity(tableName = "messages", indices = [androidx.room.Index("conversationId")])
 data class MessageEntity(
     @PrimaryKey val id: String,
     val conversationId: String,
@@ -107,6 +107,16 @@ interface ConversationDao {
 
     @Query("DELETE FROM conversations WHERE id = :id")
     suspend fun delete(id: String)
+
+    @Query("DELETE FROM messages WHERE conversationId = :conversationId")
+    suspend fun deleteMessagesForConversation(conversationId: String)
+
+    /** 删除会话及其全部消息（孤儿消息会导致搜索结果错乱，必须级联清理） */
+    @androidx.room.Transaction
+    suspend fun deleteWithMessages(id: String) {
+        deleteMessagesForConversation(id)
+        delete(id)
+    }
 }
 
 @Dao
@@ -174,7 +184,7 @@ interface ActionLogDao {
 
 @Database(
     entities = [GroupEntity::class, ConversationEntity::class, MessageEntity::class, MemoryEntity::class, ActionLogEntity::class],
-    version = 5,
+    version = 6,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -185,6 +195,13 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun actionLogDao(): ActionLogDao
 
     companion object {
+        /** v5 → v6：messages.conversationId 建索引（按会话查询/订阅避免全表扫描） */
+        val MIGRATION_5_6 = object : androidx.room.migration.Migration(5, 6) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_messages_conversationId ON messages(conversationId)")
+            }
+        }
+
         /** v4 → v5：conversations 表新增 archived 归档标记（默认 0） */
         val MIGRATION_4_5 = object : androidx.room.migration.Migration(4, 5) {
             override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {

@@ -97,6 +97,8 @@ class ChatViewModel @Inject constructor(
     // ===== 多轮行动决策上下文 =====
     private var actionGoal: String = ""        // 当前任务目标
     private val actionRunner = ActionRunController(MAX_ACTION_ROUNDS) // 轮次与停止控制
+    /** 当前行动任务的代际号，旧任务在途协程据此退出，避免写错状态/轮次 */
+    @Volatile private var actionGeneration: Long = 0L
     private val actionHistory = StringBuilder() // 已执行动作摘要
     private val executedActions = mutableListOf<AIDecisionEngine.Action>() // 已执行的原始动作（用于回滚）
 
@@ -228,8 +230,9 @@ class ChatViewModel @Inject constructor(
 
     fun switchConversation(id: String) {
         if (id == currentConversationId.value) return
-        if (uiState.value.isSending) {
-            // 行动执行/回复生成中禁止切换（避免行动结果写错会话），明确提示
+        // isSending 在等待逐动作确认时已是 false，必须连同 actionStatus 一起拦截，
+        // 否则行动结果会写进切换后的新会话
+        if (uiState.value.isSending || uiState.value.actionStatus !is ActionStatus.Idle) {
             _uiState.update { it.copy(error = "行动执行中或生成中，请先停止再切换会话") }
             return
         }
@@ -372,8 +375,9 @@ class ChatViewModel @Inject constructor(
 
     /** 重发用户消息：复用其内容与附件重新走发送链路（AI 重新回复） */
     fun resendMessage(message: ChatMessage) {
-        if (uiState.value.isSending && uiState.value.actionStatus is ActionStatus.Idle) {
-            _uiState.update { it.copy(error = "正在生成回复，请稍后再重发") }
+        // 与 switchConversation 同理：等待确认时 isSending 为 false，必须连 actionStatus 一起拦截
+        if (uiState.value.isSending || uiState.value.actionStatus !is ActionStatus.Idle) {
+            _uiState.update { it.copy(error = "正在生成回复或行动执行中，请稍后再重发") }
             return
         }
         _uiState.update {
@@ -582,7 +586,7 @@ class ChatViewModel @Inject constructor(
             return
         }
         actionGoal = goal
-        actionRunner.start()
+        actionGeneration = actionRunner.start()
         actionHistory.clear()
         _uiState.update { it.copy(draft = "", isSending = true, error = null, pendingAttachments = emptyList(), actionGoal = goal) }
 
@@ -602,8 +606,8 @@ class ChatViewModel @Inject constructor(
             )
             val result = llmClient.complete(current.baseUrl, current.apiKey, request)
             _uiState.update { it.copy(isSending = false) }
-            // 请求期间用户可能已点停止，此时不再进入确认流程
-            if (actionRunner.isCancelled) return@launch
+            // 请求期间用户可能已停止、或已开始新任务（代际变化），此时不再进入确认流程
+            if (actionRunner.isCancelled || actionRunner.isStale(actionGeneration)) return@launch
             result.onSuccess { reply ->
                 val sequence = AIDecisionEngine.parseLLMResponse(reply)
                 if (sequence.actions.isEmpty()) {
@@ -641,7 +645,7 @@ class ChatViewModel @Inject constructor(
             return
         }
         actionGoal = prompt.ifBlank { actionGoal }
-        actionRunner.start()
+        actionGeneration = actionRunner.start()
         actionHistory.clear()
 
         if (actions.isEmpty()) {
@@ -886,8 +890,8 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             // 边界保护：nextIndex-1 必须是有效动作索引
             if (nextIndex <= 0 || nextIndex > actions.size) return@launch
-            // 用户已停止：不再触碰系统 UI
-            if (actionRunner.isCancelled) return@launch
+            // 用户已停止或任务已换代：不再触碰系统 UI
+            if (actionRunner.isCancelled || actionRunner.isStale(actionGeneration)) return@launch
 
             val action = actions[nextIndex - 1]
 
@@ -951,8 +955,8 @@ class ChatViewModel @Inject constructor(
                 )
             }
 
-            // 动作执行期间用户点了停止：保留已写入的日志，不再推进
-            if (actionRunner.isCancelled) return@launch
+            // 动作执行期间用户点了停止或任务已换代：保留已写入的日志，不再推进
+            if (actionRunner.isCancelled || actionRunner.isStale(actionGeneration)) return@launch
 
             if (result.success && nextIndex < actions.size) {
                 // 继续下一个动作
@@ -964,14 +968,17 @@ class ChatViewModel @Inject constructor(
             } else if (result.success) {
                 // 本组动作全部执行完成 → 多轮决策：回传结果让 AI 根据新屏幕续判
                 continueDecision()
-            } else {
-                // 失败，提示用户但继续询问下一个
+            } else if (nextIndex < actions.size) {
+                // 失败后询问下一个动作；停留在原地（nextIndex-1）会反复重试同一个必失败动作
                 _uiState.update {
                     it.copy(
-                        actionStatus = ActionStatus.PendingConfirm.Waiting(actions, nextIndex - 1),
-                        error = "操作${action.toDesc()}失败，请重试"
+                        actionStatus = ActionStatus.PendingConfirm.Waiting(actions, nextIndex),
+                        error = "操作${action.toDesc()}失败，已跳过该操作"
                     )
                 }
+            } else {
+                // 本动作是最后一个且失败 → 直接交由 AI 复判下一步
+                continueDecision()
             }
         }
     }
@@ -995,7 +1002,7 @@ class ChatViewModel @Inject constructor(
      * 由 AI 判断任务完成（done）或继续规划下一组动作。
      */
     private fun continueDecision() {
-        if (actionRunner.isCancelled) return
+        if (actionRunner.isCancelled || actionRunner.isStale(actionGeneration)) return
         if (!actionRunner.canContinue()) {
             finishAction("已达最大决策轮次（$MAX_ACTION_ROUNDS），任务停止", isError = true)
             return
@@ -1005,7 +1012,7 @@ class ChatViewModel @Inject constructor(
 
         viewModelScope.launch {
             val screenText = extractScreenText()
-            if (actionRunner.isCancelled) return@launch
+            if (actionRunner.isCancelled || actionRunner.isStale(actionGeneration)) return@launch
             val current = uiState.value
             val systemPrompt = AIDecisionEngine.generateContinuationPrompt(
                 goal = goal,
@@ -1020,7 +1027,7 @@ class ChatViewModel @Inject constructor(
                 stream = false,
             )
             val result = llmClient.complete(current.baseUrl, current.apiKey, request)
-            if (actionRunner.isCancelled) return@launch
+            if (actionRunner.isCancelled || actionRunner.isStale(actionGeneration)) return@launch
             result.onSuccess { reply ->
                 val sequence = AIDecisionEngine.parseLLMResponse(reply)
                 when {
@@ -1082,6 +1089,7 @@ class ChatViewModel @Inject constructor(
 
     private fun loadSettings() {
         RootShell.setAuthorized(settings.rootAuthorized)
+        // 先回填与子进程无关的轻量设置，避免阻塞启动
         _uiState.update {
             it.copy(
                 baseUrl = settings.baseUrl,
@@ -1091,15 +1099,20 @@ class ChatViewModel @Inject constructor(
                 searchEnabled = settings.searchEnabled,
                 floatingWindowEnabled = settings.floatingWindowEnabled,
                 accessibilityEnabled = isAccessibilityEnabled(),
-                rootAvailable = RootShell.isRootAvailable(),
                 rootAuthorized = settings.rootAuthorized,
-                batteryLevel = if (settings.rootAuthorized && RootShell.isRootAvailable()) {
-                    runCatching { 
-                        val level = RootShell.batteryLevel() 
-                        if (level != null) "${level}%" else ""
-                    }.getOrNull().orEmpty()
-                } else "",
             )
+        }
+        // Root 探测与 su 子进程执行（各最长数秒）必须离开主线程，否则启动 ANR
+        viewModelScope.launch(Dispatchers.IO) {
+            val rootAvailable = RootShell.isRootAvailable()
+            val battery = if (settings.rootAuthorized && rootAvailable) {
+                runCatching {
+                    RootShell.batteryLevel()?.let { level -> "$level%" }
+                }.getOrNull().orEmpty()
+            } else ""
+            _uiState.update {
+                it.copy(rootAvailable = rootAvailable, batteryLevel = battery)
+            }
         }
     }
 

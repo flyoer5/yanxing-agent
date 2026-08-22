@@ -86,13 +86,17 @@ object RootShell {
 
     /**
      * 执行 Root 命令（需要设备已 Root 且用户授权）
+     *
+     * 阻塞调用（最长约 3.5 秒），严禁在主线程调用。
      * @return 命令输出；失败返回 null
      */
     fun execute(command: String): String? {
-        if (!rootAuthorized || !isCommandAllowed(command)) return null
+        // 校验与执行使用同一个串，避免 trim 差异导致"校验过的串"与"执行的串"不一致
+        val cmd = command.trim()
+        if (!rootAuthorized || !isCommandAllowed(cmd)) return null
         if (!isRootAvailable()) return null
         return runCatching {
-            val process = ProcessBuilder("su", "-c", command)
+            val process = ProcessBuilder("su", "-c", cmd)
                 .redirectErrorStream(true)
                 .start()
             // 关闭 stdin，防止 su 等待密码输入导致挂起
@@ -113,6 +117,7 @@ object RootShell {
                     // 读取中断或超时销毁进程时忽略
                 }
             }
+            readJob.isDaemon = true
             readJob.start()
 
             val finished = process.waitFor(PROCESS_TIMEOUT_MS, TimeUnit.MILLISECONDS)

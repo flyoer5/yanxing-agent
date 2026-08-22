@@ -116,8 +116,8 @@ class FloatingWindowService : Service() {
                         kotlin.math.abs(event.rawY - initialTouchY) > 10
                     ) {
                         isDragging = true
-                        layoutParams!!.x = initialX + (event.rawX - initialTouchX).toInt()
-                        layoutParams!!.y = initialY + (event.rawY - initialTouchY).toInt()
+                        layoutParams!!.x = clamp(initialX + (event.rawX - initialTouchX).toInt(), 0, resources.displayMetrics.widthPixels - ball.width)
+                        layoutParams!!.y = clamp(initialY + (event.rawY - initialTouchY).toInt(), 0, resources.displayMetrics.heightPixels - ball.height)
                         windowManager.updateViewLayout(ball, layoutParams)
                     }
                     true
@@ -126,12 +126,25 @@ class FloatingWindowService : Service() {
                     if (!isDragging) togglePanel()
                     true
                 }
+                MotionEvent.ACTION_CANCEL -> {
+                    // 拖拽被系统打断时复位，避免下次 UP 被误判为点击
+                    isDragging = false
+                    true
+                }
                 else -> false
             }
         }
 
-        windowManager.addView(ball, layoutParams)
+        try {
+            windowManager.addView(ball, layoutParams)
+        } catch (e: Exception) {
+            // 悬浮窗权限被收回等服务重启场景，addView 抛 BadTokenException 必崩
+            floatView = null
+            stopSelf()
+        }
     }
+
+    private fun clamp(value: Int, min: Int, max: Int): Int = value.coerceIn(min, max.coerceAtLeast(min))
 
     // ============ 迷你面板 ============
 
@@ -154,7 +167,10 @@ class FloatingWindowService : Service() {
             else
                 @Suppress("DEPRECATION")
                 WindowManager.LayoutParams.TYPE_PHONE,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            // 不能带 FLAG_NOT_FOCUSABLE：面板里的 EditText 需要焦点和软键盘；
+            // FLAG_NOT_TOUCH_MODAL 让面板外的触摸穿透，不挡住底下的应用
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
@@ -188,6 +204,16 @@ class FloatingWindowService : Service() {
                 startActivity(intent)
                 input.text.clear()
                 hidePanel()
+            }
+        }
+
+        // 点击面板外部时收起（配合 FLAG_WATCH_OUTSIDE_TOUCH）
+        panel.setOnTouchListener { _, event ->
+            if (event.action == MotionEvent.ACTION_OUTSIDE) {
+                hidePanel()
+                true
+            } else {
+                false
             }
         }
 

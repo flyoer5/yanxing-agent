@@ -47,8 +47,8 @@ android {
         applicationId = "com.yanxing.agent"
         minSdk = 24
         targetSdk = 35
-        versionCode = 168
-        versionName = "0.168.0"
+        versionCode = 170
+        versionName = "0.170.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
@@ -61,7 +61,9 @@ android {
             }
         }
         release {
-            isMinifyEnabled = false
+            // 混淆 + 资源收缩（README 第十三阶段设计；此前被回退为 false）
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

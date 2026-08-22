@@ -831,6 +831,16 @@ API Key 只保存在设备本地的 Android Keystore 加密数据中，不会写
 - README 补齐第 168 阶段排序接入说明
 - 里程碑同步到 168 个阶段
 
+## 第一百七十阶段（稳定性与安全加固）已完成
+
+全面代码审查后的系统性修复（崩溃/ANR 4 项、安全 4 项、功能缺陷 6 项、性能 4 项）：
+
+- **崩溃/ANR**：启动时主线程跑 `su` 子进程改到 IO 协程；Room 补 v1/v2 破坏性回退与 v5→v6 迁移（messages 建索引）；悬浮球 `addView` 加异常保护（权限被收回不再崩溃）；无障碍节点遍历全部加 `runCatching`（节点失效不再击穿执行链）
+- **安全**：`allowBackup=false` + 备份/迁移排除规则（聊天与日志不随备份导出）；RootShell 校验与执行统一用 trim 后同一串；网络层支持用户自建 http 端点（networkSecurityConfig）；Release 重新开启混淆与资源收缩（含完整 ProGuard 规则）
+- **功能缺陷**：行动等待期可切会话（结果写错会话）已拦截；动作失败不再原地死循环重试；`ActionRunController` 加代际号互斥；LLM 回复改用真正的 JSON 解析（正确处理转义/嵌套/markdown 围栏）；删除会话级联删除消息；悬浮面板 EditText 修复无法聚焦输入
+- **性能**：无障碍内容变化事件 300ms 节流；树遍历深度 O(1)；Levenshtein 截断长文本；OkHttp 错误响应读出具体原因；协程取消同步取消底层网络请求；流式请求独立 10 分钟读超时
+- 版本号 `versionCode=170`、`versionName="0.170.0"`
+
 ## 后续可扩展
 
 - 集成测试（androidTest，需设备）

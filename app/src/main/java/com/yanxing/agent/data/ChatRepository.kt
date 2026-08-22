@@ -103,7 +103,7 @@ class ChatRepository @Inject constructor(
         return true
     }
 
-    suspend fun deleteConversation(id: String) = conversationDao.delete(id)
+    suspend fun deleteConversation(id: String) = conversationDao.deleteWithMessages(id)
 
     /** 按消息内容搜索会话 id 列表（标题搜索之外的补充） */
     suspend fun searchConversationIdsByContent(keyword: String): List<String> =

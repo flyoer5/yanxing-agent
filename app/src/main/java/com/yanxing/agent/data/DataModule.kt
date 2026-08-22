@@ -16,7 +16,14 @@ object DataModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "yanxing.db")
-            .addMigrations(AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5)
+            .addMigrations(
+                AppDatabase.MIGRATION_3_4,
+                AppDatabase.MIGRATION_4_5,
+                AppDatabase.MIGRATION_5_6,
+            )
+            // v1/v2 是项目最初几天的 MVP 结构，无可靠迁移路径；
+            // 重建优于崩溃（未注册 fallback 的旧版本直接抛异常）
+            .fallbackToDestructiveMigrationFrom(1, 2)
             .build()
 
     @Provides

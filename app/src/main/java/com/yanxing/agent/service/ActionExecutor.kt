@@ -36,6 +36,7 @@ object ActionExecutor {
     private const val MAX_RETRY_COUNT = 3       // 最大重试次数
     private const val RETRY_DELAY_MS = 200L     // 重试间隔（毫秒）
     private const val NODE_DEPTH_LIMIT = 50     // 最大搜索深度
+    private const val SIMILARITY_TEXT_LIMIT = 64 // 相似度计算前截断长文本，避免 O(n·m) 爆炸
 
     fun extractText(node: AccessibilityNodeInfo?): String {
         if (node == null) return ""
@@ -236,11 +237,9 @@ object ActionExecutor {
                 candidates.add(Pair(node, 1.0f))
             } else if (desc.equals(keyword, ignoreCase = true)) {
                 candidates.add(Pair(node, 0.98f))
-            } else if (text.equals(keyword, ignoreCase = true) || desc.equals(keyword, ignoreCase = true)) {
-                candidates.add(Pair(node, 0.95f))
             }
         }
-        
+
         // 根据候选数量选择最佳节点
         return when {
             candidates.isEmpty() -> null
@@ -259,10 +258,11 @@ object ActionExecutor {
     private fun findBestSimilarityMatch(root: AccessibilityNodeInfo?, query: String): AccessibilityNodeInfo? {
         var bestMatch: AccessibilityNodeInfo? = null
         var highestScore = 0.0f
-        
+
         traverseTreeExhaustive(root, query) { node, text, desc, _, _ ->
-            val textScore = calculateSimilarity(query, text.lowercase())
-            val descScore = calculateSimilarity(query, desc.lowercase())
+            // 长文本（长文章段落等）先截断再算相似度，避免 O(n·m) 爆炸
+            val textScore = calculateSimilarity(query, text.lowercase().take(SIMILARITY_TEXT_LIMIT))
+            val descScore = calculateSimilarity(query, desc.lowercase().take(SIMILARITY_TEXT_LIMIT))
             val score = maxOf(textScore, descScore)
 
             if (score > highestScore && matchConfidence(score) == MatchConfidence.HIGH) {
@@ -270,7 +270,7 @@ object ActionExecutor {
                 bestMatch = node
             }
         }
-        
+
         return bestMatch
     }
 
@@ -306,46 +306,44 @@ object ActionExecutor {
     }
 
     // ===== 树遍历工具 =====
-    
+
+    /** 节点在窗口切换/重试间隙可能已失效，读属性抛 IllegalStateException 必须吞掉并跳过该节点 */
+    private fun safeAccess(block: () -> Boolean): Boolean =
+        try {
+            block()
+        } catch (_: Exception) {
+            false
+        }
+
     /**
      * 树遍历并返回第一个匹配的节点
+     * 队列携带层级，避免每节点沿 parent 链回溯算深度
      */
     private fun traverseTree(root: AccessibilityNodeInfo?, query: String, matcher: (String, String, String, String) -> Boolean): AccessibilityNodeInfo? {
         if (root == null) return null
-        
-        val queue = ArrayDeque<AccessibilityNodeInfo>()
-        queue.add(root)
-        
+
+        val queue = ArrayDeque<Pair<AccessibilityNodeInfo, Int>>()
+        queue.add(root to 0)
+
         while (queue.isNotEmpty()) {
-            val node = queue.removeFirst()
-            
+            val (node, depth) = queue.removeFirst()
+
             // 跳过不可见的节点
-            if (!isVisibleAndClickable(node)) continue
-            
+            if (!safeAccess { isVisibleAndClickable(node) }) continue
+
             // 检查文本、描述、ID
-            val text = node.text?.toString()?.lowercase().orEmpty()
-            val desc = node.contentDescription?.toString()?.lowercase().orEmpty()
-            val id = node.viewIdResourceName?.lowercase().orEmpty()
-            
+            val text = safeText(node)
+            val desc = safeDesc(node)
+            val id = runCatching { node.viewIdResourceName?.lowercase().orEmpty() }.getOrDefault("")
+
             if (matcher(text, desc, id, query)) return node
-            
-            // 添加子节点（限制深度）
-            var depth = 0
-            var tempNode = node.parent
-            while (tempNode != null) {
-                tempNode = tempNode.parent
-                depth++
-            }
-            
-            if (depth <= NODE_DEPTH_LIMIT) {
-                for (index in 0 until node.childCount) {
-                    node.getChild(index)?.let {
-                        queue.addLast(it)
-                    }
-                }
+
+            // 限制深度
+            if (depth < NODE_DEPTH_LIMIT) {
+                addChildNodes(node, depth, queue)
             }
         }
-        
+
         return null
     }
 
@@ -354,23 +352,42 @@ object ActionExecutor {
      */
     private fun traverseTreeExhaustive(root: AccessibilityNodeInfo?, query: String, callback: (AccessibilityNodeInfo, String, String, String, String) -> Unit) {
         if (root == null) return
-        
-        val queue = ArrayDeque<AccessibilityNodeInfo>()
-        queue.add(root)
-        
+
+        val queue = ArrayDeque<Pair<AccessibilityNodeInfo, Int>>()
+        queue.add(root to 0)
+
         while (queue.isNotEmpty()) {
-            val node = queue.removeFirst()
-            
-            if (!isVisibleAndClickable(node)) continue
-            
-            val text = node.text?.toString().orEmpty()
-            val desc = node.contentDescription?.toString().orEmpty()
-            val id = node.viewIdResourceName?.toString().orEmpty()
-            
+            val (node, depth) = queue.removeFirst()
+
+            if (!safeAccess { isVisibleAndClickable(node) }) continue
+
+            val text = safeText(node, lowercase = false)
+            val desc = safeDesc(node, lowercase = false)
+            val id = runCatching { node.viewIdResourceName?.toString().orEmpty() }.getOrDefault("")
+
             callback(node, text, desc, id, query)
-            
-            for (index in 0 until node.childCount) {
-                node.getChild(index)?.let(queue::addLast)
+
+            if (depth < NODE_DEPTH_LIMIT) {
+                addChildNodes(node, depth, queue)
+            }
+        }
+    }
+
+    private fun safeText(node: AccessibilityNodeInfo, lowercase: Boolean = true): String {
+        val raw = runCatching { node.text?.toString() }.getOrNull().orEmpty()
+        return if (lowercase) raw.lowercase() else raw
+    }
+
+    private fun safeDesc(node: AccessibilityNodeInfo, lowercase: Boolean = true): String {
+        val raw = runCatching { node.contentDescription?.toString() }.getOrNull().orEmpty()
+        return if (lowercase) raw.lowercase() else raw
+    }
+
+    private fun addChildNodes(node: AccessibilityNodeInfo, depth: Int, queue: ArrayDeque<Pair<AccessibilityNodeInfo, Int>>) {
+        val childCount = runCatching { node.childCount }.getOrDefault(0)
+        for (index in 0 until childCount) {
+            runCatching { node.getChild(index) }.getOrNull()?.let {
+                queue.addLast(it to depth + 1)
             }
         }
     }
@@ -391,8 +408,13 @@ object ActionExecutor {
 
     private fun collectText(node: AccessibilityNodeInfo, out: StringBuilder, depth: Int) {
         if (depth > 30) return
-        node.text?.toString()?.takeIf(String::isNotBlank)?.let { out.append(it).append('\n') }
-        node.contentDescription?.toString()?.takeIf(String::isNotBlank)?.let { out.append("【描述】").append(it).append('\n') }
-        for (index in 0 until node.childCount) node.getChild(index)?.let { collectText(it, out, depth + 1) }
+        runCatching {
+            node.text?.toString()?.takeIf(String::isNotBlank)?.let { out.append(it).append('\n') }
+            node.contentDescription?.toString()?.takeIf(String::isNotBlank)?.let { out.append("【描述】").append(it).append('\n') }
+        }
+        val childCount = runCatching { node.childCount }.getOrDefault(0)
+        for (index in 0 until childCount) {
+            runCatching { node.getChild(index) }.getOrNull()?.let { collectText(it, out, depth + 1) }
+        }
     }
 }

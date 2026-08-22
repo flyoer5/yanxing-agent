@@ -12,6 +12,8 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 /** 联网搜索结果条目 */
 data class SearchResult(
@@ -56,9 +58,28 @@ class TavilySearchClient @Inject constructor(
                     .post(body)
                     .build()
 
-                httpClient.newCall(request).execute().use { response ->
-                    check(response.isSuccessful) { "搜索失败：HTTP ${response.code}" }
-                    val parsed = json.decodeFromString<TavilyResponse>(response.body?.string().orEmpty())
+                val call = httpClient.newCall(request)
+                val response = kotlinx.coroutines.suspendCancellableCoroutine { cont ->
+                    call.enqueue(object : okhttp3.Callback {
+                        override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {
+                            if (cont.isActive) cont.resumeWithException(e)
+                        }
+
+                        override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) {
+                            cont.resume(response)
+                        }
+                    })
+                    // 协程取消时同步取消底层请求，释放连接与线程
+                    cont.invokeOnCancellation { call.cancel() }
+                }
+                response.use {
+                    check(it.isSuccessful) {
+                        // 先读错误体：quota/无效 key 等原因都在 body 里
+                        val detail = runCatching { it.body?.string() }.getOrNull()
+                            ?.take(300)?.replace("\n", " ").orEmpty()
+                        if (detail.isBlank()) "搜索失败：HTTP ${it.code}" else "搜索失败：HTTP ${it.code} $detail"
+                    }
+                    val parsed = json.decodeFromString<TavilyResponse>(it.body?.string().orEmpty())
                     parsed.results.map { result ->
                         SearchResult(
                             title = result.title,

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 聊天记录与操作日志含隐私内容，禁止随 adb/云备份导出 -->
+<full-backup-content>
+    <exclude domain="database" path="." />
+    <exclude domain="sharedpref" path="." />
+    <exclude domain="file" path="datastore/" />
+</full-backup-content>

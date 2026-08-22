@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  支持用户自建的 http:// API 端点（如局域网 Ollama/OpenAI 兼容网关）。
+  系统 targetSdk 28+ 默认禁止明文流量，不放开的话 http 地址会被静默拦截。
+  https 端点不受影响。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
