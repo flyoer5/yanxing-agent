@@ -293,12 +293,22 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    /** 按消息内容搜索会话 id（供会话搜索框使用） */
-    fun searchConversationsByContent(keyword: String, onResult: (List<String>) -> Unit) {
-        if (keyword.isBlank()) return
+    /** 当前搜索词（过期结果过滤用） */
+    private val currentSearchKeyword = MutableStateFlow("")
+
+    /** 按消息内容搜索会话：结果写入 uiState.contentMatchIds，UI 直接订阅 */
+    fun searchConversationsByContent(keyword: String) {
+        currentSearchKeyword.value = keyword
+        if (keyword.isBlank()) {
+            _uiState.update { it.copy(contentMatchIds = emptySet()) }
+            return
+        }
         viewModelScope.launch {
-            val ids = repository.searchConversationIdsByContent(keyword)
-            onResult(ids)
+            val ids = repository.searchConversationIdsByContent(keyword).toSet()
+            // 协程返回时搜索词可能已变，过期结果直接丢弃（竞态保护收敛在 VM 内）
+            if (keyword == currentSearchKeyword.value) {
+                _uiState.update { it.copy(contentMatchIds = ids) }
+            }
         }
     }
 
@@ -652,14 +662,14 @@ class ChatViewModel @Inject constructor(
         actionSession.destroy()
     }
 
-    /** 将 ChatMessage 转换为 API 请求的 ChatMessageDto，支持多模态 */
-    private fun ChatMessage.toChatMessageDto(): ChatMessageDto {        val images = attachments.filter { it.type == "image" && it.base64 != null }
+    /** 将 ChatMessage 转换为 API 请求的 ChatMessageDto，支持多图（历史消息里的存量 base64） */
+    private fun ChatMessage.toChatMessageDto(): ChatMessageDto {
+        val images = attachments.filter { it.type == "image" && it.base64 != null }
         return if (images.isNotEmpty()) {
-            ChatMessageDto.withImage(
+            ChatMessageDto.withImages(
                 role = role,
                 text = content,
-                imageBase64 = images.first().base64!!,
-                mimeType = images.first().mimeType,
+                images = images.take(MAX_IMAGES_PER_REQUEST).map { it.base64!! to it.mimeType },
             )
         } else {
             ChatMessageDto.text(role, content)
@@ -668,15 +678,18 @@ class ChatViewModel @Inject constructor(
 
     /** 构建本次发送的用户消息 DTO：附件已拷贝到私有目录，base64 发送时现读 */
     private suspend fun buildCurrentUserDto(text: String, attachments: List<Attachment>): ChatMessageDto {
-        val image = attachments.firstOrNull { it.type == "image" } ?: return ChatMessageDto.text("user", text)
-        val base64 = withContext(Dispatchers.IO) { readLocalFileBase64(image.uri) }
-            ?: return ChatMessageDto.text("user", text)
-        return ChatMessageDto.withImage(
-            role = "user",
-            text = text,
-            imageBase64 = base64,
-            mimeType = image.mimeType,
-        )
+        val images = attachments.filter { it.type == "image" }.take(MAX_IMAGES_PER_REQUEST)
+        if (images.isEmpty()) return ChatMessageDto.text("user", text)
+        val encoded = withContext(Dispatchers.IO) {
+            images.mapNotNull { image -> readLocalFileBase64(image.uri)?.let { it to image.mimeType } }
+        }
+        if (encoded.isEmpty()) return ChatMessageDto.text("user", text)
+        return ChatMessageDto.withImages(role = "user", text = text, images = encoded)
+    }
+
+    private companion object {
+        /** 单次请求最多携带图片数（控制 payload 与费用） */
+        const val MAX_IMAGES_PER_REQUEST = 4
     }
 
     private fun readLocalFileBase64(uri: String): String? = runCatching {
@@ -710,6 +723,7 @@ data class ChatUiState(
     val actionModeEnabled: Boolean = false, // 替我行动模式开关
     val actionStatus: ActionStatus = ActionStatus.Idle, // 当前行动状态
     val lastScreenPackage: String = "", // 最近读取的屏幕包名（用于显示）
+    val contentMatchIds: Set<String> = emptySet(), // 内容搜索命中的会话 id
     val baseUrl: String = "",
     val apiKey: String = "",
     val model: String = "",

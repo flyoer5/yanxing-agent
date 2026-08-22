@@ -870,6 +870,14 @@ API Key 只保存在设备本地的 Android Keystore 加密数据中，不会写
   - ViewModel 保留同名薄委托，UI 层零改动
 - 版本号 `versionCode=173`、`versionName="0.173.0"`
 
+## 第一百七十四阶段（多模态规范化）已完成
+
+- **修复多模态请求序列化缺陷**：`parts` 不是 OpenAI 规范字段，标准端点会忽略它——图片实际从未进入模型。新增 `ChatMessageDtoSerializer`：序列化时把 parts 合并为规范的 content 数组，反序列化兼容字符串与数组两种响应
+- **多图支持**：单条消息最多携带 4 张图（`withImages`），历史消息与本次发送统一走多图通道
+- **会话搜索改状态流**：结果进 `uiState.contentMatchIds`，竞态保护收敛到 ViewModel，UI 删掉手写回调比对
+- 新增 5 个序列化单测（content 数组合并/字符串透传/数组响应/流式 delta）
+- 版本号 `versionCode=174`、`versionName="0.174.0"`
+
 ## 后续可扩展
 
 - 集成测试（androidTest，需设备）

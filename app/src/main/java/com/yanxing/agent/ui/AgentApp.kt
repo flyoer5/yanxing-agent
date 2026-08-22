@@ -384,6 +384,7 @@ fun AgentApp(
         SessionsDialog(
             conversations = state.conversations,
             groups = state.groups,
+            contentMatchIds = state.contentMatchIds,
             selectedId = state.selectedConversationId,
             onNew = { viewModel.newConversation(); showSessions = false },
             onSelect = { viewModel.switchConversation(it); showSessions = false },
@@ -1906,6 +1907,7 @@ private fun tabTitle(index: Int) = when (index) {
 private fun SessionsDialog(
     conversations: List<Conversation>,
     groups: List<ConversationGroup>,
+    contentMatchIds: Set<String>,
     selectedId: String,
     onNew: () -> Unit,
     onSelect: (String) -> Unit,
@@ -1913,7 +1915,7 @@ private fun SessionsDialog(
     onRename: (id: String, newTitle: String) -> Unit,
     onTogglePin: (String) -> Unit,
     onToggleArchive: (String) -> Unit,
-    onSearchByContent: (keyword: String, onResult: (List<String>) -> Unit) -> Unit,
+    onSearchByContent: (keyword: String) -> Unit,
     onCreateGroup: (String) -> Unit,
     onDeleteGroup: (String) -> Unit,
     onRenameGroup: (id: String, newName: String) -> Unit,
@@ -1942,21 +1944,15 @@ private fun SessionsDialog(
             groupFilter = null
         }
     }
-    var contentMatchIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    // 防抖：停顿 300ms，快速输入时旧的 LaunchedEffect 会被取消，避免频繁请求；
+    // 结果与竞态保护都在 ViewModel 的状态流里（state.contentMatchIds）
     LaunchedEffect(searchQuery) {
         if (searchQuery.isBlank()) {
-            contentMatchIds = emptySet()
+            onSearchByContent("")
             return@LaunchedEffect
         }
-        // 防抖：停顿 300ms，快速输入时旧的 LaunchedEffect 会被取消，避免频繁请求
         delay(300L)
-        val queryAtRequest = searchQuery
-        // 用 query 快照比对过滤过期回调（竞态保护）
-        onSearchByContent(queryAtRequest) { ids ->
-            if (searchQuery == queryAtRequest) {
-                contentMatchIds = ids.toSet()
-            }
-        }
+        onSearchByContent(searchQuery)
     }
     val filteredConversations = remember(conversations, searchQuery, contentMatchIds, groupFilter, showArchived) {
         sortConversations(
