@@ -1,18 +1,25 @@
 package com.yanxing.agent.network
 
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonEncoder
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.JsonTransformingSerializer
 import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 
 /**
  * OpenAI 兼容的多模态消息内容项
@@ -33,42 +40,81 @@ sealed class ContentPart {
 }
 
 /**
- * 序列化适配 OpenAI 规范：
+ * 手写序列化器，对齐 OpenAI 规范：
  * - 纯文本消息 → {"role": "...", "content": "文本"}
  * - 多模态消息 → {"role": "...", "content": [{"type":"text",...}, {"type":"image_url",...}]}
  *
  * 此前 parts 作为独立字段随请求发出——那不是规范字段，标准端点会直接忽略，
- * 导致图片内容实际上从未进入模型。此处经 JsonTransformingSerializer
- * 在序列化时把 parts 合并为 content 数组；反序列化（响应）时兼容 string 与数组两种 content。
+ * 导致图片内容实际上从未进入模型。这里在 JSON 层直接构造规范结构；
+ * 反序列化（响应）兼容 string 与数组两种 content。
  */
-object ChatMessageDtoSerializer :
-    JsonTransformingSerializer<ChatMessageDto>(ChatMessageDto.generatedSerializer()) {
+object ChatMessageDtoSerializer : KSerializer<ChatMessageDto> {
 
-    override fun transformSerialize(element: JsonElement): JsonElement {
-        val obj = element.jsonObject
-        val parts = obj["parts"] ?: return obj
-        if (parts is JsonNull) return JsonObject(obj.filterKeys { it != "parts" && it != "content" } + ("content" to (obj["content"] ?: JsonNull)))
-        val array = parts.jsonArray
-        if (array.isEmpty()) return JsonObject(obj.filterKeys { it != "parts" })
-        // content 文本已在 parts[0]（Text），规范数组直接用 parts
-        return JsonObject(obj.filterKeys { it != "parts" && it != "content" } + ("content" to array))
+    @Serializable
+    private data class Surrogate(
+        val role: String,
+        val content: String? = null,
+        val parts: List<ContentPart>? = null,
+    )
+
+    private val surrogateSerializer = Surrogate.serializer()
+    override val descriptor: SerialDescriptor = surrogateSerializer.descriptor
+
+    override fun serialize(encoder: Encoder, value: ChatMessageDto) {
+        val jsonEncoder = encoder as? JsonEncoder
+        if (jsonEncoder == null) {
+            // 非 JSON 输出退化为代理结构（实际只会走 JSON）
+            encoder.encodeSerializableValue(surrogateSerializer, Surrogate(value.role, value.content, value.parts))
+            return
+        }
+        val parts = value.parts
+        val json = if (parts.isNullOrEmpty()) {
+            buildJsonObject {
+                put("role", value.role)
+                put("content", value.content)
+            }
+        } else {
+            buildJsonObject {
+                put("role", value.role)
+                put("content", partsToJsonArray(parts))
+            }
+        }
+        jsonEncoder.encodeJsonElement(json)
     }
 
-    override fun transformDeserialize(element: JsonElement): JsonElement {
-        val obj = element.jsonObject
-        val content = obj["content"] ?: return obj
-        return when {
-            content is JsonArray -> {
-                // 模型响应里的数组 content：抽取文本拼回字符串，原始数组挂到 parts 供按需解析
-                val text = content.filterIsInstance<JsonObject>()
+    override fun deserialize(decoder: Decoder): ChatMessageDto {
+        val jsonDecoder = decoder as? JsonDecoder
+            ?: error("ChatMessageDto 仅支持 JSON 反序列化")
+        val obj = jsonDecoder.decodeJsonElement().jsonObject
+        val role = obj["role"]?.jsonPrimitive?.contentOrNull ?: ""
+        val content = when (val raw = obj["content"]) {
+            null, is JsonNull -> null
+            is JsonPrimitive -> raw.contentOrNull
+            is JsonArray -> {
+                // 模型响应中的数组 content：抽取文本段拼为字符串
+                raw.filterIsInstance<JsonObject>()
                     .filter { it["type"]?.jsonPrimitive?.contentOrNull == "text" }
                     .joinToString("") { it["text"]?.jsonPrimitive?.contentOrNull.orEmpty() }
-                JsonObject(
-                    obj + ("content" to (text.ifEmpty { null }?.let(::JsonPrimitive) ?: JsonNull)) +
-                        ("parts" to content),
-                )
+                    .ifEmpty { null }
             }
-            else -> obj
+            else -> null
+        }
+        return ChatMessageDto(role = role, content = content)
+    }
+
+    private fun partsToJsonArray(parts: List<ContentPart>): JsonArray = buildJsonArray {
+        parts.forEach { part ->
+            when (part) {
+                is ContentPart.Text -> add(buildJsonObject {
+                    put("type", "text")
+                    put("text", part.text)
+                })
+                is ContentPart.ImageUrl -> add(buildJsonObject {
+                    put("type", "image_url")
+                    put("url", part.url)
+                    put("detail", part.detail)
+                })
+            }
         }
     }
 }
